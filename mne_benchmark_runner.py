@@ -30,10 +30,14 @@ def benchmark_feature_extractor(X, freq_bands, sfreq=500.0 ):
    
     fe = FeatureExtractor(
         sfreq=sfreq,
-        selected_funcs=[
-             "mean", "std", "rms", "pow_freq_bands",
-             "hjorth_mobility", "hjorth_complexity"
-         ],
+        selected_funcs = [
+            "mean",                 # np.mean
+            "std",                  # np.std
+            "rms",                  # Root Mean Square
+            "hjorth_mobility",      # Hjorth mobility
+            "hjorth_complexity",    # Hjorth complexity
+            "pow_freq_bands"        # Band Power for Delta, Theta, Alpha, Beta
+        ],
         params={
             "pow_freq_bands__freq_bands": freq_bands,
             "pow_freq_bands__psd_method": "welch",
