@@ -186,3 +186,56 @@ def load_epochs(subjects=None, derivatives=derivatives, windowLength=windowLengt
     print(f"Data shape: {X.shape}")
     
     return X
+
+
+
+from pyspark.sql import Row
+from pyspark.sql import SparkSession
+import numpy as np
+from preprocess_sets import processSub
+import os
+
+def load_subjects_spark(spark: SparkSession, subject_ids, derivatives=True, windowLength=3.0, stepSize=0.3):
+    """
+    Load subjects as Spark DataFrame with one row per epoch.
+    Each row has SubjectID, EpochID, and full EEG array (channels x timepoints).
+    
+    Parameters
+    ----------
+    spark : SparkSession
+        Active Spark session.
+    subject_ids : list
+        List of subject IDs to process.
+    derivatives : bool
+        Whether to use derivatives path.
+    windowLength : float
+        Epoch window length in seconds.
+    stepSize : float
+        Step size between epochs in seconds.
+    
+    Returns
+    -------
+    spark_df : pyspark.sql.DataFrame
+        Spark DataFrame where each row corresponds to one epoch with raw EEG data.
+    """
+    all_rows = []
+
+    for subject_id in subject_ids:
+        try:
+            print(f"[INFO] Loading subject {subject_id}")
+            epochs = processSub(subject_id, derivatives=derivatives, windowLength=windowLength, stepSize=stepSize)
+            data = epochs.get_data()  # shape: (n_epochs, n_channels, n_times)
+
+            for epoch_id, epoch_data in enumerate(data):
+                # Flatten or keep as nested array; Spark can serialize this
+                all_rows.append(Row(
+                    SubjectID=subject_id,
+                    EpochID=f"ep-{epoch_id}",
+                    EEG=epoch_data.tolist()  # Convert numpy array to serializable list
+                ))
+        except Exception as e:
+            print(f"[ERROR] Could not load {subject_id}: {e}")
+
+    # Convert to Spark DataFrame
+    return spark.createDataFrame(all_rows)
+
