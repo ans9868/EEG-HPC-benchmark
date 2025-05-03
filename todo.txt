@@ -1,0 +1,11 @@
+
+Double check all teh stuff works
+
+Run the benchmark
+
+Make it so that we do the epoch creation then do feature extraction seperately for pyspark 
+
+Run the benchmark with the change
+
+Look over results
+
