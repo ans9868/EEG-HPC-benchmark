@@ -10,7 +10,7 @@ from pyspark import SparkContext
 from pyspark.storagelevel import StorageLevel
 #from src.feature_extraction import run_full_pipeline  # adjust this if needed
 
-# importing costum module 
+# importing costum module , don't need both but i have both lol 
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "./src/")))
@@ -122,18 +122,29 @@ def main():
         .groupBy("SubjectID")
         .apply(extract_features_udtf)
     )
+
     sub1.persist()
+    rows = sub1.count()
+    end = time.time()
+    cols = len(sub1.columns)
+    print(f"Shape of sub-001: ({rows}, {cols})")
+
+
+    print(f"Total runtime: {(end - start) / 60:.2f} minutes")
+    print(f"Memory usage after: {psutil.virtual_memory().percent}%")
+
+
+    # checking results
     # sub1.persist(StorageLevel.MEMORY_AND_DISK)
     print("3 tables, one for each layer of abraction, specific --> general (band, electrode, epoch) ")
+
+
     sub1.filter((sub1.table_type=="band")).show(3)
     sub1.filter((sub1.table_type=="electrode")).show(3)
     sub1.filter((sub1.table_type=="epoch")).show(3)
+
     sub1.unpersist()
 
-
-    end = time.time()
-    print(f"Total runtime: {(end - start) / 60:.2f} minutes")
-    print(f"Memory usage after: {psutil.virtual_memory().percent}%")
 
     # print single subject 
 
