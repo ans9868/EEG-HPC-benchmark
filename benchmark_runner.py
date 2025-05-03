@@ -2,6 +2,7 @@ import time
 from pyspark.sql import SparkSession
 import psutil
 from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import functions as F
 from pyspark.sql.functions import pandas_udf, PandasUDFType
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, ArrayType, MapType
 import pandas as pd
@@ -128,6 +129,25 @@ def main():
     end = time.time()
     cols = len(sub1.columns)
     print(f"Shape of sub-001: ({rows}, {cols})")
+
+    # filter is not necessary but done in case / for fun
+    filtered = sub1.filter(sub1.table_type == "band")
+    feature_key_col = F.concat_ws("_", "Electrode", "FeatureName")
+    filtered = filtered.withColumn("FeatureKey", feature_key_col)
+
+    wide_df = (
+        filtered
+        .withColumn("FeatureKey", feature_key_col)
+        .groupBy("EpochID")
+        .pivot("FeatureKey")
+        .agg(F.first("FeatureValue"))
+    )
+
+
+    rows = wide_df.count()
+    cols = len(wide_df.columns)
+    print(f"Shape of sub-001 wide: ({rows}, {cols})")
+
 
 
     print(f"Total runtime: {(end - start) / 60:.2f} minutes")
