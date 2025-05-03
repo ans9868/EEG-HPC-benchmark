@@ -105,7 +105,7 @@ def processSub(sub, derivatives=derivatives, windowLength=windowLength, stepSize
     print("processSub: windowLength", stepSize)
     raw = mne.io.read_raw_eeglab(subPath(sub, derivatives), preload=True)
     
-    # removing the boundary events by adding BAD_boundary
+    # removing the boundary events by adding BAD_boundary here and 'reject by anotaion' in mne.Epochs( .... )
     for i, desc in enumerate(raw.annotations.description):
         if 'boundary' in desc:
             raw.annotations.description[i] = 'BAD_boundary'
@@ -225,7 +225,7 @@ def load_subjects_spark(spark: SparkSession, subject_ids, derivatives=True, wind
             print(f"[INFO] Loading subject {subject_id}")
             epochs = processSub(subject_id, derivatives=derivatives, windowLength=windowLength, stepSize=stepSize)
             data = epochs.get_data()  # shape: (n_epochs, n_channels, n_times)
-
+            # * notice *might be error here , its tricky to iterate over epochs
             for epoch_id, epoch_data in enumerate(data):
                 # Flatten or keep as nested array; Spark can serialize this
                 all_rows.append(Row(
