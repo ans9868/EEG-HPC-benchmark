@@ -33,7 +33,7 @@ method = config['stepSize']
 def get_data_path():
     return data_path
 
-def subPath(sub, derivatives=True):
+def subPath(sub, derivatives=derivatives):
     print("subPath", sub)
     print("subPath data_path", data_path)
     
@@ -62,7 +62,7 @@ def _psd_generator(epochs, compute_psd):
     for i in range(len(epochs)):
         yield compute_psd(epochs[i])
 
-def processSubPSDs(sub, derivatives=True, method=method, windowLength=windowLength, stepSize=stepSize, mode='generator', n_jobs=1):
+def processSubPSDs(sub, derivatives=derivatives, method=method, windowLength=windowLength, stepSize=stepSize, mode='generator', n_jobs=1):
     raw = mne.io.read_raw_eeglab(subPath(sub, derivatives), preload=True)
     sfreq = raw.info['sfreq']
 
@@ -126,7 +126,7 @@ def processSub(sub, derivatives=derivatives, windowLength=windowLength, stepSize
 
 # new
 
-def load_epochs(subjects=None, derivatives=True, windowLength=windowLength, stepSize=stepSize):
+def load_epochs(subjects=None, derivatives=derivatives, windowLength=windowLength, stepSize=stepSize):
     """
     Load and combine epochs from multiple subjects into the format expected by mne-features
     
