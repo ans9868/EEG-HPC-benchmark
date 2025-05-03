@@ -123,3 +123,66 @@ def processSub(sub, derivatives=derivatives, windowLength=windowLength, stepSize
     )
     
     return epochs
+
+# new
+
+def load_epochs(subjects=None, derivatives=True, windowLength=windowLength, stepSize=stepSize):
+    """
+    Load and combine epochs from multiple subjects into the format expected by mne-features
+    
+    Parameters
+    ----------
+    subjects : list of str or None
+        List of subject IDs to process. If None, process all available subjects.
+    derivatives : bool, default=True
+        Whether to use the derivatives data path.
+    windowLength : float
+        Length of each epoch window in seconds.
+    stepSize : float
+        Step size between consecutive epochs in seconds.
+    
+    Returns
+    -------
+    X : ndarray, shape (n_epochs, n_channels, n_times)
+        Combined epochs data from all subjects.
+    """
+    # If no subjects specified, could get them from a directory listing
+    if subjects is None:
+        # Example: get all subject directories
+        import glob
+        subjects = [os.path.basename(p) for p in 
+                   glob.glob(os.path.join(data_path, 'ds004504', 'sub-*'))]
+        subjects = [s.replace('sub-', '') for s in subjects]
+    
+    # List to hold all epochs
+    all_epochs_data = []
+    
+    print("load_epochs, first subject path: ", subjects[0])
+    # Process each subject
+    for sub in subjects:
+        print(f"Processing subject {sub}")
+        try:
+            # Get epochs for this subject
+            epochs = processSub(sub, derivatives, windowLength, stepSize)
+            
+            # Convert epochs to numpy array - shape (n_epochs, n_channels, n_times)
+            epochs_data = epochs.get_data()
+            
+            # Append to our collection
+            all_epochs_data.append(epochs_data)
+            
+        except Exception as e:
+            print(f"Error processing subject {sub}: {e}")
+            continue
+    
+    # Combine all subjects' epochs into one array
+    if not all_epochs_data:
+        raise ValueError("No valid epochs data found for any subjects")
+    
+    # Concatenate along the first dimension (epochs)
+    X = np.concatenate(all_epochs_data, axis=0)
+    
+    print(f"Loaded {X.shape[0]} epochs from {len(subjects)} subjects")
+    print(f"Data shape: {X.shape}")
+    
+    return X
