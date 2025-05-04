@@ -42,33 +42,43 @@ def main():
     os.environ["_JAVA_OPTIONS"] = "-Xmx12g -Xms4g"
 
 # Build Spark session with memory, parallelism, and network settings
-    spark = (
-        SparkSession.builder
-        .appName("EEG_Analysis")
-    
-        # Use 8 threads for better CPU balance on an M4 (assume 8–10 efficiency/performance cores)
-        .config("spark.master", "local[8]")
-    
-        # Optimize memory use (you can likely push this higher depending on RAM)
-        .config("spark.executor.memory", "18g")
-        .config("spark.driver.memory", "18g")
-    
-        # Reduce shuffle overhead in local mode
-        .config("spark.sql.shuffle.partitions", "100")
-        .config("spark.sql.adaptive.enabled", "true")
-        # Match parallelism to CPU threads
-        .config("spark.default.parallelism", "8")
-        .config("spark.sql.adaptive.shuffle.targetPostShuffleInputSize", "5120000")  # 5MB
-        # Larger RPC size helps with big EEG rows
-        .config("spark.rpc.message.maxSize", "256")
-        .config("spark.sql.execution.arrow.pyspark.enabled", "true")
-        .config("spark.sql.execution.arrow.maxRecordsPerBatch", "500")
-        # Ensure no duplicate/conflicting config keys (you had spark.master twice!)
-        .config("spark.driver.bindAddress", "127.0.0.1")
-        .config("spark.driver.host", "127.0.0.1")
-        
+    # spark = (
+    #     SparkSession.builder
+    #     .appName("EEG_Analysis")
+    # 
+    #     # Use 8 threads for better CPU balance on an M4 (assume 8–10 efficiency/performance cores)
+    #     .config("spark.master", "local[8]")
+    # 
+    #     # Optimize memory use (you can likely push this higher depending on RAM)
+    #     .config("spark.executor.memory", "18g")
+    #     .config("spark.driver.memory", "18g")
+    # 
+    #     # Reduce shuffle overhead in local mode
+    #     .config("spark.sql.shuffle.partitions", "100")
+    #     .config("spark.sql.adaptive.enabled", "true")
+    #     # Match parallelism to CPU threads
+    #     .config("spark.default.parallelism", "8")
+    #     .config("spark.sql.adaptive.shuffle.targetPostShuffleInputSize", "5120000")  # 5MB
+    #     # Larger RPC size helps with big EEG rows
+    #     .config("spark.rpc.message.maxSize", "256")
+    #     .config("spark.sql.execution.arrow.pyspark.enabled", "true")
+    #     .config("spark.sql.execution.arrow.maxRecordsPerBatch", "500")
+    #     # Ensure no duplicate/conflicting config keys (you had spark.master twice!)
+    #     .config("spark.driver.bindAddress", "127.0.0.1")
+    #     .config("spark.driver.host", "127.0.0.1")
+    #     
+    #     .getOrCreate()
+    # )
+   
+    spark = (SparkSession.builder 
+        .appName("EEG") 
+        .config("spark.sql.execution.arrow.pyspark.enabled", "true") 
+        .config("spark.executor.memory", "2g") 
+        .config("spark.driver.memory", "4g") 
+        .config("spark.sql.shuffle.partitions", "4") 
         .getOrCreate()
     )
+        
     
     # Enable Apache Arrow (huge for pandas UDFs)
     
