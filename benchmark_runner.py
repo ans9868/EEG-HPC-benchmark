@@ -41,50 +41,58 @@ def main():
 
     os.environ["_JAVA_OPTIONS"] = "-Xmx12g -Xms4g"
 
-# Build Spark session with memory, parallelism, and network settings
-    # spark = (
-    #     SparkSession.builder
-    #     .appName("EEG_Analysis")
-    # 
-    #     # Use 8 threads for better CPU balance on an M4 (assume 8–10 efficiency/performance cores)
-    #     .config("spark.master", "local[8]")
-    # 
-    #     # Optimize memory use (you can likely push this higher depending on RAM)
-    #     .config("spark.executor.memory", "18g")
-    #     .config("spark.driver.memory", "18g")
-    # 
-    #     # Reduce shuffle overhead in local mode
-    #     .config("spark.sql.shuffle.partitions", "100")
-    #     .config("spark.sql.adaptive.enabled", "true")
-    #     # Match parallelism to CPU threads
-    #     .config("spark.default.parallelism", "8")
-    #     .config("spark.sql.adaptive.shuffle.targetPostShuffleInputSize", "5120000")  # 5MB
-    #     # Larger RPC size helps with big EEG rows
-    #     .config("spark.rpc.message.maxSize", "256")
-    #     .config("spark.sql.execution.arrow.pyspark.enabled", "true")
-    #     .config("spark.sql.execution.arrow.maxRecordsPerBatch", "500")
-    #     # Ensure no duplicate/conflicting config keys (you had spark.master twice!)
-    #     .config("spark.driver.bindAddress", "127.0.0.1")
-    #     .config("spark.driver.host", "127.0.0.1")
-    #     
-    #     .getOrCreate()
-    # )
    
-    spark = (SparkSession.builder 
-        .appName("EEG") 
-        .config("spark.sql.execution.arrow.pyspark.enabled", "true") 
-        .config("spark.executor.memory", "2g") 
-        .config("spark.driver.memory", "4g") 
-        .config("spark.sql.shuffle.partitions", "4") 
+    spark = (
+        SparkSession.builder
+        .appName("EEG_Analysis_HPC")
+
+        # Target ~12 executors across the cluster (safe parallelism)
+        .config("spark.executor.instances", "12")
+        .config("spark.executor.cores", "1")             # 1 core per executor
+        .config("spark.executor.memory", "4g")           # 12 × 4g = 48 GB total
+        .config("spark.driver.memory", "6g")             # leave room for driver ops
+
+        # Parallelism and shuffle tuning
+        .config("spark.default.parallelism", "12")
+        .config("spark.sql.shuffle.partitions", "12")
+
+        # UDF / pandas optimization
+        .config("spark.sql.execution.arrow.pyspark.enabled", "true")
+        .config("spark.sql.execution.arrow.maxRecordsPerBatch", "500")
+
+        # JVM GC tuning
+        .config("spark.executor.extraJavaOptions", "-XX:+UseG1GC -XX:+UseStringDeduplication")
+
+        # Optional: Raise broadcast size if EEG config or schema is large
+        .config("spark.sql.autoBroadcastJoinThreshold", "20MB")
+
         .getOrCreate()
-    )
+)
+
+
         
     
     # Enable Apache Arrow (huge for pandas UDFs)
     
     
     print("New Spark session created successfully")
+    print("=== Spark Configuration & Runtime info ===")
+    print(f"App ID: {spark.sparkContext.applicationId}")
+    print(f"Master: {spark.sparkContext.master}")
+    print(f"Default Parallelism: {spark.sparkContext.defaultParallelism}")
+    print(f"Total Executors: {spark.sparkContext._jsc.sc().getExecutorMemoryStatus().size()}")
 
+    for item in spark.sparkContext.getConf().getAll():
+        print(f"{item[0]} = {item[1]}")
+    
+    print("=== Executor Memory Status ===")
+    executor_status = spark.sparkContext._jsc.sc().getExecutorMemoryStatus().items()
+    for executor, mem in executor_status:
+        mem_used, mem_total = mem
+        print(f"Executor: {executor}, Used: {mem_used / 1e9:.2f} GB, Total: {mem_total / 1e9:.2f} GB")
+
+
+    
     print(f"Memory usage before: {psutil.virtual_memory().percent}%")
 
 
