@@ -99,7 +99,7 @@ def main():
     # Load data once to use for both benchmarks
     print("start")
     start = time.time()
-    subjects = ['sub-003']
+    subjects = ['sub-001', 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
     X = load_epochs(subjects)
     
 

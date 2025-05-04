@@ -1,0 +1,22 @@
+# Data files
+*.parquet
+*.pkl
+*.csv
+
+# Dataset directory
+ds004504/
+
+# Vim swap files
+*.swp
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*.py~
+
+# Jupyter notebook checkpoints (optional)
+.ipynb_checkpoints/
+
+#Other
+.DS_Store
+.DS_store

@@ -124,7 +124,7 @@ def processSub(sub, derivatives=derivatives, windowLength=windowLength, stepSize
     
     return epochs
 
-# new
+
 
 def load_epochs(subjects=None, derivatives=derivatives, windowLength=windowLength, stepSize=stepSize):
     """
@@ -222,6 +222,38 @@ def load_subjects_spark(spark: SparkSession, subject_ids: list):
                 ChannelNames=ch_names,
                 SFreq=float(sfreq)
             ))
+
+            if epoch_rows:
+                # print(f"[BUILDINGsPARK DATAFRAME for] {subject_id}")
+                # sub_df_epochs = spark.createDataFrame(epoch_rows)
+                # sub_df_metadata =spark.createDataFrame(metadata_rows)
+                # sub_df_epochs.write.mode("append").parquet("tmp_epochs/")
+                # sub_df_metadata.write.mode("append").parquet("tmp_metadata/")
+                # epoch_rows = []
+                # metadata_rows = []
+            #
+            #     print(f"[BUILDING SPARK DATAFRAME for] {subject_id}")
+    
+                print(f"[BUILDING SPARK DATAFRAME for] {subject_id}")
+                
+                sub_df_epochs = spark.createDataFrame(epoch_rows)
+                sub_df_metadata = spark.createDataFrame(metadata_rows)
+            
+                # Add partitioning (optional, good if querying later by SubjectID)
+                sub_df_epochs.write \
+                    .mode("append") \
+                    .parquet("tmp_epochs/")
+            
+                sub_df_metadata.write \
+                    .mode("append") \
+                    .parquet("tmp_metadata/")
+            
+                # Reset rows for next subject
+                epoch_rows.clear()
+                metadata_rows.clear()
+
+
+
             print(f"[DONE] {subject_id} with {data.shape[0]} epochs")
 
         except Exception as e:

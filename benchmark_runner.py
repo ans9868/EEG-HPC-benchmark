@@ -43,39 +43,33 @@ def main():
 
 # Build Spark session with memory, parallelism, and network settings
     spark = (
-        SparkSession.builder 
-        # Application name shown in Spark UI
-        .appName("EEG_Analysis") 
+        SparkSession.builder
+        .appName("EEG_Analysis")
     
-        # Use all available logical cores or specify a number
-        # "local[*]" uses all available cores, "local[12]" limits to 12 threads
-        .config("spark.master", "local[12]") \
-    
-        # Executor memory: how much memory each Spark worker can use
-        .config("spark.executor.memory", "8g") \
-    
-        # Driver memory: memory available to the Spark driver (main Python process)
-        .config("spark.driver.memory", "8g") \
-    
-        # Number of shuffle partitions (e.g., after groupBy, join, etc.)
-        # Lower this in local mode to reduce overhead (default is 200)
-        .config("spark.sql.shuffle.partitions", "12") \
-    
-        # Default number of partitions in operations like parallelize
-        .config("spark.default.parallelism", "12") \
-    
-        # Maximum size (in MB) allowed for any RPC message (e.g., large UDF closures or data broadcasts)
-        .config("spark.rpc.message.maxSize", "256") \
-        
-        # to not reach 100% CPU utilizatoin and get stuck
+        # Use 8 threads for better CPU balance on an M4 (assume 8–10 efficiency/performance cores)
         .config("spark.master", "local[8]")
     
-        # Required for avoiding binding issues on some MacOS environments
-        .config("spark.driver.bindAddress", "127.0.0.1") \
-        .config("spark.driver.host", "127.0.0.1") 
+        # Optimize memory use (you can likely push this higher depending on RAM)
+        .config("spark.executor.memory", "18g")
+        .config("spark.driver.memory", "18g")
+    
+        # Reduce shuffle overhead in local mode
+        .config("spark.sql.shuffle.partitions", "8")
+    
+        # Match parallelism to CPU threads
+        .config("spark.default.parallelism", "8")
+    
+        # Larger RPC size helps with big EEG rows
+        .config("spark.rpc.message.maxSize", "256")
+    
+        # Ensure no duplicate/conflicting config keys (you had spark.master twice!)
+        .config("spark.driver.bindAddress", "127.0.0.1")
+        .config("spark.driver.host", "127.0.0.1")
+        
         .getOrCreate()
     )
-    # Enable Apache Arrow for pandas UDF performance boost
+    
+    # Enable Apache Arrow (huge for pandas UDFs)
     spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
     
     
@@ -127,10 +121,14 @@ def main():
     subject_df = load_subjects_df(spark)
 
     # Load data for target subjects
-    subject_ids = ["sub-003"]
+    subject_ids = ['sub-001', 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
+    # subject_ids = ['sub-003'] #, 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
+    print("loading subjects")
     df_epochs, df_metadata = load_subjects_spark(spark, subject_ids)
 
+    print("got epochs and metadata")
     # Join to add metadata (sfreq, ch_names) to each epoch
+    print("joining epoch table and metatable ")
     df = join_epochs_with_metadata(df_epochs, df_metadata)
 
     # Basic preview
@@ -139,32 +137,31 @@ def main():
     print(f"Loaded data shape: ({df.count()}, {len(df.columns)})")
 
     # Optimize
-    df = df.repartition(2000, "SubjectID")
-    df.persist(StorageLevel.MEMORY_AND_DISK)
+    df = df.repartition(1000).persist(StorageLevel.MEMORY_AND_DISK)
     
     start = time.time()
     # Apply the UDTF: One subject group at a time
+    #
     print("[SPARK] Applying extract_features_udtf...")
-    sub1 = (
-        df.groupBy("SubjectID")
-          .applyInPandas(
-              extract_features_udtf,
-              schema="""
-                  SubjectID string,
-                  EpochID string,
-                  Electrode string,
-                  WaveBand string,
-                  FeatureName string,
-                  FeatureValue double,
-                  table_type string
-              """
-          )
+    subs = (
+        df.groupBy("SubjectID").applyInPandas(
+            extract_features_udtf,
+            schema="""
+                SubjectID string,
+                EpochID string,
+                Electrode string,
+                WaveBand string,
+                FeatureName string,
+                FeatureValue double,
+                table_type string
+            """
+        )
     )
-
-    sub1.persist(StorageLevel.MEMORY_AND_DISK)
-    rows = sub1.count()
+    
+    subs = subs.repartition(1000).persist(StorageLevel.MEMORY_AND_DISK)
+    rows = subs.count()
     end = time.time()
-    cols = len(sub1.columns)
+    cols = len(subs.columns)
     print(f"✅ Shape of extracted features for subject(s): ({rows}, {cols})")
 
     # Benchmark time
@@ -172,136 +169,11 @@ def main():
     print(f"✅ Total runtime: {total_time / 60:.2f} minutes")
     print(f"Memory usage after: {psutil.virtual_memory().percent}%")
 
-    sub1.show(3)
+    subs.show(3)
     spark.stop()
     print("=== FINISHED ===")
     print("elapsed time of the udtf: ", )
-    '''
-    # Load subject metadata (if needed for group labels, etc.)
-    subject_df = load_subjects_df(spark)
-    
-    # Load EEG data as Spark DataFrame (one row per epoch)
-    subject_ids = ["sub-003"]
-    df = load_subjects_spark(spark, subject_ids)
-    
-    # Show schema and preview
-    df.printSchema()
-    df.show(2)
-    
-    # Count rows and columns
-    rows = df.count()
-    cols = len(df.columns)
-    print(f"Shape of the data frame for subject: ({rows}, {cols})")
-    
-    # Persist and repartition the loaded EEG data
-    df = df.repartition(1000, "SubjectID")
-    df.persist(StorageLevel.MEMORY_AND_DISK)
-    
-    
-    sub1 = (
-        df.groupBy("SubjectID")
-          .applyInPandas(
-              extract_features_udtf,
-              schema="""
-                  SubjectID string,
-                  EpochID string,
-                  Electrode string,
-                  WaveBand string,
-                  FeatureName string,
-                  FeatureValue double,
-                  table_type string
-              """
-          )
-    )
-    
-    # Persist and count results
-    sub1.persist(StorageLevel.MEMORY_AND_DISK)
-    rows = sub1.count()
-    cols = len(sub1.columns)
-    print(f"Shape of sub-003 (features): ({rows}, {cols})")
-    
-    '''
-
-    '''
-    # load in a single subject
-    subject_df = load_subjects_df(spark) #this is the .tsv with the information of all the participantsfname
-    subject_df = subject_df.repartition(200, "SubjectID")  # tweak 200 based on cluster resources
-    # we need to give the path of our  data directory to process the EEG data from
-    from preprocess_sets import get_data_path
-    
-    # set_data_path("/Users/user/eeg-ds004504") !!! this doesn't work! so we need to do it manually in preprocess_sets.py! or else won't work!
-    print(get_data_path())
-
-    subject_ids = ["sub-003"]
-    df = load_subjects_spark(spark, subject_ids)
-    
-    #  Show structure
-    df.printSchema()
-    df.show(2)
-    
-    rows = df.count()
-    cols = len(df.columns)
-    print(f"Shape of the data frame for subject: ({rows}, {cols})")
-
-    
-    df = df.repartition(200, "SubjectID", persist())
-
-#Example below is how to get a single subject  and extract its features
-    sub1 = (
-        subject_df
-        .filter((subject_df.SubjectID == "sub-003"))
-        .groupBy("SubjectID")
-        .apply(extract_features_udtf)
-    )
-
-    sub1.persist()
-    rows = sub1.count()
-    end = time.time()
-    cols = len(sub1.columns)
-    print(f"Shape of sub-001: ({rows}, {cols})")
-
-    '''
-    
-
-    '''
-    # filter is not necessary but done in case / for fun
-    filtered = sub1.filter(sub1.table_type == "band")
-    feature_key_col = F.concat_ws("_", "Electrode", "FeatureName")
-    filtered = filtered.withColumn("FeatureKey", feature_key_col)
-
-    wide_df = (
-        filtered
-        .withColumn("FeatureKey", feature_key_col)
-        .groupBy("EpochID")
-        .pivot("FeatureKey")
-        .agg(F.first("FeatureValue"))
-    )
-
-
-    rows = wide_df.count()
-    cols = len(wide_df.columns)
-    print(f"Shape of sub-001 wide: ({rows}, {cols})")
-
-
-
-    print(f"Total runtime: {(end - start) / 60:.2f} minutes")
-    print(f"Memory usage after: {psutil.virtual_memory().percent}%")
-
-
-    # checking results
-    # sub1.persist(StorageLevel.MEMORY_AND_DISK)
-    print("3 tables, one for each layer of abraction, specific --> general (band, electrode, epoch) ")
-
-
-    sub1.filter((sub1.table_type=="band")).show(3)
-    sub1.filter((sub1.table_type=="electrode")).show(3)
-    sub1.filter((sub1.table_type=="epoch")).show(3)
-
-    sub1.unpersist()
-
-    '''
-    # print single subject 
-
+   
     spark.stop()
 
 if __name__ == "__main__":
