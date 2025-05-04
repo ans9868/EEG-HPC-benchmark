@@ -163,7 +163,8 @@ def main():
     end = time.time()
     cols = len(subs.columns)
     print(f"✅ Shape of extracted features for subject(s): ({rows}, {cols})")
-
+    print("unique subjects")
+    df.select("SubjectID").distinct().show()
     # Benchmark time
     total_time = end - start
     print(f"✅ Total runtime: {total_time / 60:.2f} minutes")
