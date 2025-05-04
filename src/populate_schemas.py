@@ -55,14 +55,16 @@ from feature_extraction import processEpoch  # This function returns a list of R
 
 # @pandas_udf(get_feature_schema(), PandasUDFType.GROUPED_MAP)
 # def extract_features_udtf(pdf: pd.DataFrame) -> pd.DataFrame:
-def extract_features_udtf(key: pd.Series, pdf: pd.DataFrame) -> pd.DataFrame:
+def extract_features_udtf(pdf: pd.DataFrame) -> pd.DataFrame:
     """
-    Accepts a pandas DataFrame with columns:
+    Accepts a pandas DataFrame with:
     - SubjectID (str)
     - EpochID (str)
-    - EEG (array): shape = (n_channels, n_times)
+    - EEG (2D array: n_channels x n_times)
+    - ChannelNames (list of str)
+    - SFreq (float)
 
-    Returns a long-format pandas DataFrame with:
+    Returns a long-format DataFrame with:
     - SubjectID, EpochID, Electrode, WaveBand, FeatureName, FeatureValue, table_type
     """
     results = []
@@ -71,15 +73,21 @@ def extract_features_udtf(key: pd.Series, pdf: pd.DataFrame) -> pd.DataFrame:
         subject_id = row["SubjectID"]
         epoch_id = row["EpochID"]
         eeg_data = np.array(row["EEG"])
+        ch_names = row["ChannelNames"]
+        sfreq = float(row["SFreq"])
 
-        # You might want to reconstruct a fake MNE Epoch if needed, or pass to a local wrapper
-        # But assuming processEpoch can handle this NumPy input:
-        # #TODO need to pass tei epoch info here ! Need to do a join on the table Per subject for there epoch info
-        feature_rows = processEpoch(subject_id, epoch_id, eeg_data)
+        try:
+            feature_rows = processEpoch(
+                subject_id,
+                epoch_id,
+                eeg_data,
+                channelNames=ch_names,
+                sfreq=sfreq
+            )
+            results.extend(feature_rows)
+        except Exception as e:
+            print(f"[ERROR] {subject_id}:{epoch_id} - {e}")
 
-        results.extend(feature_rows)
-
-    # Convert list of Row objects to pandas DataFrame
     return pd.DataFrame([r.asDict() for r in results])
 
 '''

@@ -51,29 +51,27 @@ method = 'welch'
 windowLength = 3
 stepSize = 1.5
 from mne.filter import filter_data
-
+from mne.time_frequency import psd_array_welch
 from pyspark.sql import Row
-def processEpoch(subjectID, epochID, epoch, freqBands=freqBands, method=method, windowLength=windowLength, stepSize=stepSize, n_jobs=1):
+
+def processEpoch(subjectID, epochID, rawData, channelNames=ch_names, sfreq=sfreq, freqBands=freqBands, method=method, windowLength=windowLength, stepSize=stepSize, n_jobs=1):
     fmin = min(band_range[0] for band_range in freqBands.values())
     fmax = max(band_range[1] for band_range in freqBands.values())
 
-    channelNames = epoch.info['ch_names']
-
-    # PSD based features
-    psds, freqs = epoch.compute_psd(
-        method=method,
-        picks='eeg',
+    # PSD based features , welch , need to add functionality for other later
+    psds, freqs = psd_array_welch(
+        rawData,
+        sfreq=sfreq,
         fmin=fmin,
         fmax=fmax,
+        n_fft=int(sfreq * windowLength),
+        n_overlap=int(sfreq * (windowLength - stepSize)),
         verbose=False
-    ).get_data(return_freqs=True)
+    )
     
     normalPsds = psds / np.sum(psds, axis=-1, keepdims=True)
-    normalPsds = np.squeeze(normalPsds)
 
     # Time domain EEG data for this epoch
-    data = epoch.get_data(picks="eeg")[0]  # shape (n_channels, n_times)
-
     rows = []
 
     for channel_idx, channel_name in enumerate(channelNames):
@@ -87,11 +85,11 @@ def processEpoch(subjectID, epochID, epoch, freqBands=freqBands, method=method, 
             # ("Skewness", scipy.stats.skew(data[channel_idx])),
             # ("Kurtosis", scipy.stats.kurtosis(data[channel_idx])),
             
-            ("Mean", np.mean(data[channel_idx])),
-            ("Std", np.std(data[channel_idx])),
-            ("RMS", np.sqrt(np.mean(data[channel_idx] ** 2))),
-            ("HjorthMobility", compute_hjorth_mobility(data[channel_idx:channel_idx+1])[0]),
-            ("HjorthComplexity", compute_hjorth_complexity(data[channel_idx:channel_idx+1])[0])
+            ("Mean", np.mean(rawData[channel_idx])),
+            ("Std", np.std(rawData[channel_idx])),
+            ("RMS", np.sqrt(np.mean(rawData[channel_idx] ** 2))),
+            ("HjorthMobility", compute_hjorth_mobility(rawData[channel_idx:channel_idx+1])[0]),
+            ("HjorthComplexity", compute_hjorth_complexity(rawData[channel_idx:channel_idx+1])[0])
         ]
 
         for fname, val in electrode_features:
@@ -115,8 +113,8 @@ def processEpoch(subjectID, epochID, epoch, freqBands=freqBands, method=method, 
             band_power = psd_band.mean()
 
 
-            mobility = compute_hjorth_mobility(data[channel_idx:channel_idx+1])[0]
-            complexity = compute_hjorth_complexity(data[channel_idx:channel_idx+1])[0]
+            mobility = compute_hjorth_mobility(rawData[channel_idx:channel_idx+1])[0]
+            complexity = compute_hjorth_complexity(rawData[channel_idx:channel_idx+1])[0]
             
             # spectral_entropy = spectral_entropy_from_psd(psd_band)
             # hjorth_index = compute_hjorth_index(data[channel_idx:channel_idx+1])[0]
