@@ -115,8 +115,8 @@ def processEpoch(subjectID, epochID, rawData, channelNames, sfreq, freqBands=fre
     # PSD based features , welch , need to add functionality for other later
     # ** might need to tune the fft, seg and n_overlap settings 
     rawData = np.array(rawData)
-    # if epochID == 'ep-2':
-    debug_epoch_psd(epochID, rawData, sfreq)
+
+    # debug_epoch_psd(epochID, rawData, sfreq)
     
     n_times = rawData.shape[1]
     fft_len = min(int(sfreq * windowLength), n_times)
