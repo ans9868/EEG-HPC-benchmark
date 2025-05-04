@@ -76,53 +76,25 @@ def extract_features_udtf(pdf: pd.DataFrame) -> pd.DataFrame:
         ch_names = row["ChannelNames"]
         sfreq = float(row["SFreq"])
         
-      
-        # eeg_data = row["EEG"]
-        # 
-        # if isinstance(eeg_data, list) and isinstance(eeg_data[0], (list, np.ndarray)):
-        #     lens = [len(ch) for ch in eeg_data]
-        #     min_len = min(lens)
-        #     max_len = max(lens)
-        # 
-        #     if min_len != max_len:
-        #         print(f"[WARN] Epoch {row['EpochID']} has uneven channel lengths")
-        #         print(f"       → Shortest = {min_len}, Longest = {max_len}")
-        #         print(f"       → Trimming all to {min_len}")
-        # 
-        #     # Trim each channel to the shortest length
-        #     eeg_data = np.array([np.array(ch[:min_len]) for ch in eeg_data])
-        # 
-        #     # Double-check final shape
-        #     if eeg_data.shape != (len(eeg_data), min_len):
-        #         print(f"[ERROR] Trimming failed for {row['EpochID']} → final shape {eeg_data.shape}")
-        #         continue
-        # 
-        # else:
-        #     print(f"[ERROR] Invalid EEG format for {row['EpochID']}: {type(eeg_data)}")
-        #     continue
+        # here we are formatting the rows to numpy arrays and ensuring they are the same size (across channels ie electrodes)
+        # * This can be a bottleneck since we are using numpy for calculating PSD its necessary
+        #   Solutions : pyarray, using pandas/numpy for raw eeg data
+        eeg_data = np.array(row["EEG"])  # infer dtype and shape
+        eeg_data = np.stack(eeg_data, axis=0)
        
 
-        
 
-        eeg_data = np.array(row["EEG"])  # infer dtype and shape
-        if eeg_data.ndim == 1 and isinstance(eeg_data[0], (list, np.ndarray)):
-            lens = [len(ch) for ch in eeg_data]                                   
-            min_len = min(lens)                                                   
-            max_len = max(lens)                                                   
-                                                                                  
-            if min_len != max_len:                                                
-                print(f"[WARN] Epoch {row['EpochID']} has uneven channel lengths")
-                print(f"       → Shortest = {min_len}, Longest = {max_len}")      
-                print(f"       → Trimming all to {min_len}")                      
+        lens = [len(ch) for ch in eeg_data]                                   
+        min_len = min(lens) 
+        max_len = max(lens) 
+        if min_len != max_len:                                                
+            print(f"[WARN] Epoch {row['EpochID']} has uneven channel lengths")
+            print(f"       → Shortest = {min_len}, Longest = {max_len}")      
+            print(f"       → Trimming all to {min_len}")                      
+            eeg_data = [ch[:min_len] for ch in eeg_data]
 
 
-            # It's a list of lists/arrays → stack them into a 2D array
-            eeg_data = np.stack(eeg_data, axis=0)
-
-        elif eeg_data.ndim != 2:
-            print(f"[ERROR] Invalid EEG shape for {row['EpochID']}: {eeg_data.shape}")
-            continue
-
+       
         try:
             feature_rows = processEpoch(
                 subject_id,
@@ -137,47 +109,4 @@ def extract_features_udtf(pdf: pd.DataFrame) -> pd.DataFrame:
 
     return pd.DataFrame([r.asDict() for r in results])
 
-'''
-@pandas_udf(get_feature_schema(), PandasUDFType.GROUPED_MAP)
-def extract_features_udtf(pdf):
-    from feature_extraction import processEpoch, processSub
-    import time
 
-    all_rows = []
-
-    for _, row in pdf.iterrows():
-        subject_id = row["SubjectID"]
-        print(f"[START] {subject_id}")
-        start = time.time()
-
-        try:
-            epochs = processSub(subject_id, config['derivatives'])
-
-            def safe_process(i, ep):
-                try:
-                    return processEpoch(subject_id, f"ep-{i}", ep)
-                except Exception as e:
-                    print(f"[ERROR] {subject_id}:ep-{i}: {e}")
-                    return []
-
-            #It's possible to optimize this with joblib, but it can cause problems with threads not releasing semlocks when CPU reaches 100%
-            results = [safe_process(i, epochs[i]) for i in range(len(epochs))]
-
-            subject_rows = []
-            for res in results:
-                if isinstance(res, list):
-                    subject_rows.extend(res)
-                else:
-                    subject_rows.append(res)
-
-            all_rows.extend(subject_rows)
-
-        except Exception as e:
-            print(f"[ERROR] Failed to process {subject_id}: {e}")
-            continue
-
-        print(f"[FINISHED] {subject_id} in {time.time() - start:.2f}s")
-
-    return pd.DataFrame([r.asDict() for r in all_rows])
-
-'''
