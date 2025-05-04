@@ -9,6 +9,11 @@ import pandas as pd
 from functools import reduce
 from pyspark import SparkContext
 from pyspark.storagelevel import StorageLevel
+from pyspark.sql.functions import col
+from pyspark import StorageLevel
+
+
+
 #from src.feature_extraction import run_full_pipeline  # adjust this if needed
 
 # importing costum module , don't need both but i have both lol 
@@ -88,9 +93,11 @@ def main():
 
     # Making all the modules files available to spark
     from populate_schemas import load_subjects_df, extract_features_udtf
+    # from populate_schemas import extract_features_udtf
     from feature_extraction import processEpoch, processSub
     from schema_definition import get_feature_schema, get_subject_schema
-    
+    from preprocess_sets import load_subjects_spark
+
     sc = spark.sparkContext
     try:
         sc.addPyFile(os.path.join(SRC_DIR, "feature_extraction.py"))
@@ -103,10 +110,60 @@ def main():
         print("Added schema_definition.py to the pyspark context")
         sc.addPyFile(os.path.join(SRC_DIR, "config_handler.py"))
         print("Added config_handler.py to the pyspark context")
+        sc.addPyFile(os.path.join(SRC_DIR, "populate_schemas.py"))
+        print("Added populate_schemas.py to the pyspark context")
+
+
     except Exception as e:
         print(f"Error adding files to SparkContext: {e}")
     
 
+    
+    # Load subject metadata (if needed for group labels, etc.)
+    subject_df = load_subjects_df(spark)
+    
+    # Load EEG data as Spark DataFrame (one row per epoch)
+    subject_ids = ["sub-003"]
+    df = load_subjects_spark(spark, subject_ids)
+    
+    # Show schema and preview
+    df.printSchema()
+    df.show(2)
+    
+    # Count rows and columns
+    rows = df.count()
+    cols = len(df.columns)
+    print(f"Shape of the data frame for subject: ({rows}, {cols})")
+    
+    # Persist and repartition the loaded EEG data
+    df = df.repartition(1000, "SubjectID")
+    df.persist(StorageLevel.MEMORY_AND_DISK)
+    
+    
+    sub1 = (
+        df.groupBy("SubjectID")
+          .applyInPandas(
+              extract_features_udtf,
+              schema="""
+                  SubjectID string,
+                  EpochID string,
+                  Electrode string,
+                  WaveBand string,
+                  FeatureName string,
+                  FeatureValue double,
+                  table_type string
+              """
+          )
+    )
+    
+    # Persist and count results
+    sub1.persist(StorageLevel.MEMORY_AND_DISK)
+    rows = sub1.count()
+    cols = len(sub1.columns)
+    print(f"Shape of sub-003 (features): ({rows}, {cols})")
+    
+
+    '''
     # load in a single subject
     subject_df = load_subjects_df(spark) #this is the .tsv with the information of all the participantsfname
     subject_df = subject_df.repartition(200, "SubjectID")  # tweak 200 based on cluster resources
@@ -115,8 +172,22 @@ def main():
     
     # set_data_path("/Users/user/eeg-ds004504") !!! this doesn't work! so we need to do it manually in preprocess_sets.py! or else won't work!
     print(get_data_path())
+
+    subject_ids = ["sub-003"]
+    df = load_subjects_spark(spark, subject_ids)
     
-    #Example below is how to get a single subject  and extract its features
+    #  Show structure
+    df.printSchema()
+    df.show(2)
+    
+    rows = df.count()
+    cols = len(df.columns)
+    print(f"Shape of the data frame for subject: ({rows}, {cols})")
+
+    
+    df = df.repartition(200, "SubjectID", persist())
+
+#Example below is how to get a single subject  and extract its features
     sub1 = (
         subject_df
         .filter((subject_df.SubjectID == "sub-003"))
@@ -130,6 +201,10 @@ def main():
     cols = len(sub1.columns)
     print(f"Shape of sub-001: ({rows}, {cols})")
 
+    '''
+    
+
+    '''
     # filter is not necessary but done in case / for fun
     filtered = sub1.filter(sub1.table_type == "band")
     feature_key_col = F.concat_ws("_", "Electrode", "FeatureName")
@@ -165,7 +240,7 @@ def main():
 
     sub1.unpersist()
 
-
+    '''
     # print single subject 
 
     spark.stop()

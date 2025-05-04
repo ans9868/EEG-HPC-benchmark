@@ -46,6 +46,43 @@ def load_subjects_df(spark: SparkSession, participants_path: str="") -> DataFram
 
 
 
+
+import numpy as np
+import pandas as pd
+from pyspark.sql import Row
+
+from feature_extraction import processEpoch  # This function returns a list of Rows
+
+# @pandas_udf(get_feature_schema(), PandasUDFType.GROUPED_MAP)
+# def extract_features_udtf(pdf: pd.DataFrame) -> pd.DataFrame:
+def extract_features_udtf(key: pd.Series, pdf: pd.DataFrame) -> pd.DataFrame:
+    """
+    Accepts a pandas DataFrame with columns:
+    - SubjectID (str)
+    - EpochID (str)
+    - EEG (array): shape = (n_channels, n_times)
+
+    Returns a long-format pandas DataFrame with:
+    - SubjectID, EpochID, Electrode, WaveBand, FeatureName, FeatureValue, table_type
+    """
+    results = []
+
+    for _, row in pdf.iterrows():
+        subject_id = row["SubjectID"]
+        epoch_id = row["EpochID"]
+        eeg_data = np.array(row["EEG"])
+
+        # You might want to reconstruct a fake MNE Epoch if needed, or pass to a local wrapper
+        # But assuming processEpoch can handle this NumPy input:
+        # #TODO need to pass tei epoch info here ! Need to do a join on the table Per subject for there epoch info
+        feature_rows = processEpoch(subject_id, epoch_id, eeg_data)
+
+        results.extend(feature_rows)
+
+    # Convert list of Row objects to pandas DataFrame
+    return pd.DataFrame([r.asDict() for r in results])
+
+'''
 @pandas_udf(get_feature_schema(), PandasUDFType.GROUPED_MAP)
 def extract_features_udtf(pdf):
     from feature_extraction import processEpoch, processSub
@@ -88,3 +125,4 @@ def extract_features_udtf(pdf):
 
     return pd.DataFrame([r.asDict() for r in all_rows])
 
+'''
