@@ -188,6 +188,15 @@ def load_epochs(subjects=None, derivatives=derivatives, windowLength=windowLengt
     return X
 
 
+from pyspark.sql import Row
+from pyspark.sql import SparkSession
+from pyspark import StorageLevel
+
+
+
+
+
+
 
 from pyspark.sql import Row
 from pyspark.sql import SparkSession
@@ -199,7 +208,88 @@ import os
 
 from pyspark import StorageLevel
 
+from pyspark.sql import Row
+from pyspark import StorageLevel
+import mne
+import numpy as np
+from src.preprocess_sets import subPath
+
 def load_subjects_spark(spark: SparkSession, subject_ids: list):
+    def processSubSpark(sub_id):
+        try:
+            raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
+
+            # Mark boundary annotations
+            for i, desc in enumerate(raw.annotations.description):
+                if 'boundary' in desc:
+                    raw.annotations.description[i] = 'BAD_boundary'
+
+            sfreq = raw.info['sfreq']
+            ch_names = raw.info['ch_names']
+            start_times = np.arange(0, raw.times[-1] - windowLength, stepSize)
+            events = np.array([[int(t * sfreq), 0, 1] for t in start_times])
+
+            epochs = mne.Epochs(
+                raw, events, event_id=1, tmin=0, tmax=windowLength,
+                baseline=None, detrend=1, preload=True, verbose=False,
+                reject_by_annotation=True
+            )
+            data = epochs.get_data()
+
+            epoch_rows = [
+                Row(
+                    SubjectID=sub_id,
+                    EpochID=f"ep-{ep_idx}",
+                    EEG=data[ep_idx].astype(float).tolist(),
+                    ChannelNames=ch_names,
+                    SFreq=float(sfreq)
+                )
+                for ep_idx in range(data.shape[0])
+            ]
+
+            metadata_row = Row(
+                SubjectID=sub_id,
+                ChannelNames=ch_names,
+                SFreq=float(sfreq),
+                NumEpochs=int(data.shape[0])
+            )
+
+            return (epoch_rows, metadata_row)
+
+        except Exception as e:
+            print(f"[ERROR] {sub_id}: {e}")
+            return ([], None)
+
+
+
+    print(sorted(subject_ids))
+    print(f"Unique: {len(set(subject_ids))}, Total: {len(subject_ids)}")
+    # ⚙️ RDD of subject IDs
+    rdd = spark.sparkContext.parallelize(subject_ids, numSlices=2)
+
+    # Run per-subject processing
+    result_rdd = rdd.map(processSubSpark)
+
+    # Unpack into two RDDs
+    epoch_rows_rdd = result_rdd.flatMap(lambda x: x[0])
+    metadata_rows_rdd = result_rdd.map(lambda x: x[1]).filter(lambda x: x is not None)
+
+    # Convert to DataFrames
+    df_epochs = spark.createDataFrame(epoch_rows_rdd)
+    df_metadata = spark.createDataFrame(metadata_rows_rdd)
+
+    # Optional: partition/cache/write
+    df_epochs = df_epochs.repartition("SubjectID").persist(StorageLevel.MEMORY_AND_DISK)
+    df_metadata = df_metadata.repartition("SubjectID").persist(StorageLevel.MEMORY_AND_DISK)
+
+    df_epochs.write.mode("overwrite").partitionBy("SubjectID").parquet("tmp_epochs/")
+    df_metadata.write.mode("overwrite").partitionBy("SubjectID").parquet("tmp_metadata/")
+
+    return df_epochs, df_metadata
+
+
+
+
     all_epoch_dfs = []
     all_metadata_dfs = []
 
@@ -253,7 +343,6 @@ def load_subjects_spark(spark: SparkSession, subject_ids: list):
     full_df_metadata = all_metadata_dfs[0].unionByName(*all_metadata_dfs[1:]) if all_metadata_dfs else spark.createDataFrame([], schema=None)
 
     return full_df_epochs, full_df_metadata
-
 
 # def load_subjects_spark(spark: SparkSession, subject_ids: list):
 #     epoch_rows = []
