@@ -241,8 +241,6 @@ def load_subjects_spark(spark: SparkSession, subject_ids: list):
                     SubjectID=sub_id,
                     EpochID=f"ep-{ep_idx}",
                     EEG=data[ep_idx].astype(float).tolist(),
-                    ChannelNames=ch_names,
-                    SFreq=float(sfreq)
                 )
                 for ep_idx in range(data.shape[0])
             ]
@@ -285,137 +283,14 @@ def load_subjects_spark(spark: SparkSession, subject_ids: list):
     df_epochs.write.mode("overwrite").partitionBy("SubjectID").parquet("tmp_epochs/")
     df_metadata.write.mode("overwrite").partitionBy("SubjectID").parquet("tmp_metadata/")
 
+    # do we need to unpersist ? 
     return df_epochs, df_metadata
 
 
 
-
-    all_epoch_dfs = []
-    all_metadata_dfs = []
-
-    for subject_id in subject_ids:
-        print(f"[START] {subject_id}")
-        try:
-            epochs = processSub(subject_id)
-            data = epochs.get_data()
-            ch_names = epochs.info['ch_names']
-            sfreq = epochs.info['sfreq']
-
-            epoch_rows = [
-                Row(
-                    SubjectID=subject_id,
-                    EpochID=f"ep-{ep_idx}",
-                    EEG=data[ep_idx].astype(float).tolist()
-                )
-                for ep_idx in range(data.shape[0])
-            ]
-
-            metadata_rows = [
-                Row(
-                    SubjectID=subject_id,
-                    ChannelNames=ch_names,
-                    SFreq=float(sfreq)
-                )
-            ]
-
-            df_epochs = spark.createDataFrame(epoch_rows)
-            df_metadata = spark.createDataFrame(metadata_rows)
-
-            # Partition by subject, optionally cache
-            df_epochs = df_epochs.repartition("SubjectID").persist(StorageLevel.MEMORY_AND_DISK)
-            df_metadata = df_metadata.repartition("SubjectID").persist(StorageLevel.MEMORY_AND_DISK)
-
-            # Save partitioned Parquet (optional)
-            df_epochs.write.mode("append").partitionBy("SubjectID").parquet("tmp_epochs/")
-            df_metadata.write.mode("append").partitionBy("SubjectID").parquet("tmp_metadata/")
-
-            all_epoch_dfs.append(df_epochs)
-            all_metadata_dfs.append(df_metadata)
-
-            print(f"[DONE] {subject_id} with {data.shape[0]} epochs")
-
-        except Exception as e:
-            print(f"[ERROR] Failed to load subject {subject_id}: {e}")
-            continue
-
-    # Union all cached DataFrames
-    full_df_epochs = all_epoch_dfs[0].unionByName(*all_epoch_dfs[1:]) if all_epoch_dfs else spark.createDataFrame([], schema=None)
-    full_df_metadata = all_metadata_dfs[0].unionByName(*all_metadata_dfs[1:]) if all_metadata_dfs else spark.createDataFrame([], schema=None)
-
-    return full_df_epochs, full_df_metadata
-
-# def load_subjects_spark(spark: SparkSession, subject_ids: list):
-#     epoch_rows = []
-#     metadata_rows = []
-#
-#     for subject_id in subject_ids:
-#         print(f"[START] {subject_id}")
-#         try:
-#             epochs = processSub(subject_id)
-#             data = epochs.get_data()  # shape: (n_epochs, n_channels, n_times)
-#             ch_names = epochs.info['ch_names']
-#             sfreq = epochs.info['sfreq']
-#             
-#             # **easy errors here looping over epochs **
-#             for ep_idx in range(data.shape[0]):
-#                 epoch_rows.append(Row(
-#                     SubjectID=subject_id,
-#                     EpochID=f"ep-{ep_idx}",
-#                     EEG=data[ep_idx].astype(float).tolist()
-#                     # EEG=data[ep_idx].tolist()  # shape: (n_channels, n_times)
-#                 ))
-#
-#             metadata_rows.append(Row(
-#                 SubjectID=subject_id,
-#                 ChannelNames=ch_names,
-#                 SFreq=float(sfreq)
-#             ))
-#
-#             if epoch_rows:
-#                 # print(f"[BUILDINGsPARK DATAFRAME for] {subject_id}")
-#                 # sub_df_epochs = spark.createDataFrame(epoch_rows)
-#                 # sub_df_metadata =spark.createDataFrame(metadata_rows)
-#                 # sub_df_epochs.write.mode("append").parquet("tmp_epochs/")
-#                 # sub_df_metadata.write.mode("append").parquet("tmp_metadata/")
-#                 # epoch_rows = []
-#                 # metadata_rows = []
-#             #
-#             #     print(f"[BUILDING SPARK DATAFRAME for] {subject_id}")
-#     
-#                 print(f"[BUILDING SPARK DATAFRAME for] {subject_id}")
-#                 # epoch_rows.                
-#                 sub_df_epochs = spark.createDataFrame(epoch_rows)
-#                 sub_df_metadata = spark.createDataFrame(metadata_rows)
-#             
-#                 # Add partitioning (optional, good if querying later by SubjectID)
-#                 sub_df_epochs.write \
-#                     .mode("append") \
-#                     .parquet("tmp_epochs/")
-#             
-#                 sub_df_metadata.write \
-#                     .mode("append") \
-#                     .parquet("tmp_metadata/")
-#             
-#                 # Reset rows for next subject
-#                 epoch_rows.clear()
-#                 metadata_rows.clear()
-#
-#
-#
-#             print(f"[DONE] {subject_id} with {data.shape[0]} epochs")
-#
-#         except Exception as e:
-#             print(f"[ERROR] Failed to load subject {subject_id}: {e}")
-#             continue
-#
-#     df_epochs = spark.createDataFrame(epoch_rows)
-#     df_metadata = spark.createDataFrame(metadata_rows)
-#
-#     return df_epochs, df_metadata
-#
-
 from pyspark.sql import DataFrame
 def join_epochs_with_metadata(df_epochs: DataFrame, df_metadata: DataFrame) -> DataFrame:
+    df_metadata = df_metadata.drop("NumEpochs")
     joined_df = df_epochs.join(df_metadata, on="SubjectID", how="left")
     return joined_df
 
