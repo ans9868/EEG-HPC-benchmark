@@ -213,7 +213,8 @@ def load_subjects_spark(spark: SparkSession, subject_ids: list):
                 epoch_rows.append(Row(
                     SubjectID=subject_id,
                     EpochID=f"ep-{ep_idx}",
-                    EEG=data[ep_idx].tolist()  # shape: (n_channels, n_times)
+                    EEG=data[ep_idx].astype(float).tolist()
+                    # EEG=data[ep_idx].tolist()  # shape: (n_channels, n_times)
                 ))
 
             metadata_rows.append(Row(
@@ -231,3 +232,10 @@ def load_subjects_spark(spark: SparkSession, subject_ids: list):
     df_metadata = spark.createDataFrame(metadata_rows)
 
     return df_epochs, df_metadata
+
+
+from pyspark.sql import DataFrame
+def join_epochs_with_metadata(df_epochs: DataFrame, df_metadata: DataFrame) -> DataFrame:
+    joined_df = df_epochs.join(df_metadata, on="SubjectID", how="left")
+    return joined_df
+

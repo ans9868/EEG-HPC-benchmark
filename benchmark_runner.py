@@ -96,7 +96,10 @@ def main():
     # from populate_schemas import extract_features_udtf
     from feature_extraction import processEpoch, processSub
     from schema_definition import get_feature_schema, get_subject_schema
-    from preprocess_sets import load_subjects_spark
+    from preprocess_sets import load_subjects_spark, join_epochs_with_metadata
+
+
+    # def join_epochs_with_metadata(df_epochs: DataFrame, df_metadata: DataFrame) -> DataFrame:
 
     sc = spark.sparkContext
     try:
@@ -112,13 +115,68 @@ def main():
         print("Added config_handler.py to the pyspark context")
         sc.addPyFile(os.path.join(SRC_DIR, "populate_schemas.py"))
         print("Added populate_schemas.py to the pyspark context")
+        sc.addPyFile(os.path.join(SRC_DIR, "preprocess_sets.py"))
+        print("Added preprocess_sets.py to the pyspark context")
 
 
     except Exception as e:
         print(f"Error adding files to SparkContext: {e}")
     
 
+    # Load subject group info (e.g., labels for A/C/F)
+    subject_df = load_subjects_df(spark)
+
+    # Load data for target subjects
+    subject_ids = ["sub-003"]
+    df_epochs, df_metadata = load_subjects_spark(spark, subject_ids)
+
+    # Join to add metadata (sfreq, ch_names) to each epoch
+    df = join_epochs_with_metadata(df_epochs, df_metadata)
+
+    # Basic preview
+    df.printSchema()
+    df.show(2)
+    print(f"Loaded data shape: ({df.count()}, {len(df.columns)})")
+
+    # Optimize
+    df = df.repartition(2000, "SubjectID")
+    df.persist(StorageLevel.MEMORY_AND_DISK)
     
+    start = time.time()
+    # Apply the UDTF: One subject group at a time
+    print("[SPARK] Applying extract_features_udtf...")
+    sub1 = (
+        df.groupBy("SubjectID")
+          .applyInPandas(
+              extract_features_udtf,
+              schema="""
+                  SubjectID string,
+                  EpochID string,
+                  Electrode string,
+                  WaveBand string,
+                  FeatureName string,
+                  FeatureValue double,
+                  table_type string
+              """
+          )
+    )
+
+    sub1.persist(StorageLevel.MEMORY_AND_DISK)
+    rows = sub1.count()
+    end = time.time()
+    cols = len(sub1.columns)
+    print(f"✅ Shape of extracted features for subject(s): ({rows}, {cols})")
+
+    # Benchmark time
+    total_time = end - start
+    print(f"✅ Total runtime: {total_time / 60:.2f} minutes")
+    print(f"Memory usage after: {psutil.virtual_memory().percent}%")
+
+    sub1.show(3)
+    spark.stop()
+    print("=== FINISHED ===")
+    print("elapsed time of the udtf: ", )
+    '''
     # Load subject metadata (if needed for group labels, etc.)
     subject_df = load_subjects_df(spark)
     
@@ -162,6 +220,7 @@ def main():
     cols = len(sub1.columns)
     print(f"Shape of sub-003 (features): ({rows}, {cols})")
     
+    '''
 
     '''
     # load in a single subject

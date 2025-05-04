@@ -75,6 +75,15 @@ def extract_features_udtf(pdf: pd.DataFrame) -> pd.DataFrame:
         eeg_data = np.array(row["EEG"])
         ch_names = row["ChannelNames"]
         sfreq = float(row["SFreq"])
+        
+       
+        eeg_data = np.array(row["EEG"])  # infer dtype and shape
+        if eeg_data.ndim == 1 and isinstance(eeg_data[0], (list, np.ndarray)):
+            # It's a list of lists/arrays → stack them into a 2D array
+            eeg_data = np.stack(eeg_data, axis=0)
+        elif eeg_data.ndim != 2:
+            print(f"[ERROR] Invalid EEG shape for {row['EpochID']}: {eeg_data.shape}")
+            continue
 
         try:
             feature_rows = processEpoch(

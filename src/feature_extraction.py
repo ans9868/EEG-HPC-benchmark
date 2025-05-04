@@ -54,20 +54,84 @@ from mne.filter import filter_data
 from mne.time_frequency import psd_array_welch
 from pyspark.sql import Row
 
-def processEpoch(subjectID, epochID, rawData, channelNames=ch_names, sfreq=sfreq, freqBands=freqBands, method=method, windowLength=windowLength, stepSize=stepSize, n_jobs=1):
+
+def debug_epoch_psd(epoch_id, raw_data, sfreq):
+    print(f"\n[DEBUG] --- Analyzing Epoch: {epoch_id} ---")
+    
+    # 1. Shape & Type
+    print("Raw EEG shape (should be 2D: channels x time):", raw_data.shape)
+    print("Raw EEG type:", type(raw_data))
+    print("First channel type:", type(raw_data[0]))
+    
+    if raw_data.ndim != 2:
+        print("[ERROR] raw_data is not 2D!")
+        return
+    
+    n_channels, n_times = raw_data.shape
+    print(f"Channels: {n_channels}, Timepoints: {n_times}")
+    
+    # 2. Signal Stats
+    print("Check for NaNs:", np.isnan(raw_data).any())
+    print("Min/Max value:", np.min(raw_data), np.max(raw_data))
+    print("Mean per channel (first 3):", [np.mean(raw_data[i]) for i in range(min(3, n_channels))])
+    print("Std per channel (first 3):", [np.std(raw_data[i]) for i in range(min(3, n_channels))])
+
+    # 3. Safe n_fft setup
+    fft_len = min(2048, n_times)
+    print(f"Using n_fft = {fft_len}")
+
+    try:
+        psds, freqs = psd_array_welch(
+            raw_data,
+            sfreq=sfreq,
+            fmin=0.5,
+            fmax=40.0,
+            n_fft=fft_len,
+            n_per_seg=fft_len,  # force match to avoid overlap issues
+            n_overlap=int(fft_len * 0.5),
+            remove_dc=True,
+            average='mean',
+            window='hamming',
+            verbose=True
+        )
+        print("[SUCCESS] PSD computed.")
+        print("PSD shape:", psds.shape)
+        print("Freqs shape:", freqs.shape)
+        print("First 5 freqs:", freqs[:5])
+        print("Mean PSD value for first channel:", np.mean(psds[0]))
+    
+    except Exception as e:
+        print(f"[ERROR] PSD computation failed: {e}")
+
+    print("[DEBUG DONE]")
+
+
+
+
+def processEpoch(subjectID, epochID, rawData, channelNames, sfreq, freqBands=freqBands, method=method, windowLength=windowLength, stepSize=stepSize, n_jobs=1):
     fmin = min(band_range[0] for band_range in freqBands.values())
     fmax = max(band_range[1] for band_range in freqBands.values())
 
     # PSD based features , welch , need to add functionality for other later
+    # ** might need to tune the fft, seg and n_overlap settings 
+    rawData = np.array(rawData)
+    # if epochID == 'ep-2':
+    debug_epoch_psd(epochID, rawData, sfreq)
+    
+    n_times = rawData.shape[1]
+    fft_len = min(int(sfreq * windowLength), n_times)
+    
     psds, freqs = psd_array_welch(
         rawData,
         sfreq=sfreq,
         fmin=fmin,
         fmax=fmax,
-        n_fft=int(sfreq * windowLength),
-        n_overlap=int(sfreq * (windowLength - stepSize)),
+        # n_fft=fft_len, set to default since when I play with it goes all weird on me
+        # n_per_seg=fft_len,
+        # n_overlap=int(fft_len * (1 - stepSize / windowLength)),
         verbose=False
     )
+
     
     normalPsds = psds / np.sum(psds, axis=-1, keepdims=True)
 
@@ -189,4 +253,4 @@ def processSubjects(subjectList, n_jobs=-1):
         allResults[subject] = result
 
     return allResults
-
+processEpoch
