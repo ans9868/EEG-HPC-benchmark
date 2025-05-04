@@ -54,14 +54,15 @@ def main():
         .config("spark.driver.memory", "18g")
     
         # Reduce shuffle overhead in local mode
-        .config("spark.sql.shuffle.partitions", "8")
-    
+        .config("spark.sql.shuffle.partitions", "100")
+        .config("spark.sql.adaptive.enabled", "true")
         # Match parallelism to CPU threads
         .config("spark.default.parallelism", "8")
-    
+        .config("spark.sql.adaptive.shuffle.targetPostShuffleInputSize", "5120000")  # 5MB
         # Larger RPC size helps with big EEG rows
         .config("spark.rpc.message.maxSize", "256")
-    
+        .config("spark.sql.execution.arrow.pyspark.enabled", "true")
+        .config("spark.sql.execution.arrow.maxRecordsPerBatch", "500")
         # Ensure no duplicate/conflicting config keys (you had spark.master twice!)
         .config("spark.driver.bindAddress", "127.0.0.1")
         .config("spark.driver.host", "127.0.0.1")
@@ -70,7 +71,6 @@ def main():
     )
     
     # Enable Apache Arrow (huge for pandas UDFs)
-    spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
     
     
     print("New Spark session created successfully")
