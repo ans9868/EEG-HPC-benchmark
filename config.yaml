@@ -1,4 +1,4 @@
-data_path: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
+data_path: /home/ans9868/EEG-HPC-benchmark
 derivatives: true
 freqBands:
   Alpha:
