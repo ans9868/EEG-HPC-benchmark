@@ -39,7 +39,7 @@ def main():
         print("Previous Spark context stopped successfully")
 
 
-    os.environ["_JAVA_OPTIONS"] = "-Xmx12g -Xms4g"
+#     os.environ["_JAVA_OPTIONS"] = "-Xmx12g -Xms4g" #done automatically
 
    
     spark = (
@@ -85,13 +85,6 @@ def main():
     for item in spark.sparkContext.getConf().getAll():
         print(f"{item[0]} = {item[1]}")
     
-    print("=== Executor Memory Status ===")
-    executor_status = spark.sparkContext._jsc.sc().getExecutorMemoryStatus().items()
-    for executor, mem in executor_status:
-        mem_used, mem_total = mem
-        print(f"Executor: {executor}, Used: {mem_used / 1e9:.2f} GB, Total: {mem_total / 1e9:.2f} GB")
-
-
     
     print(f"Memory usage before: {psutil.virtual_memory().percent}%")
 

@@ -1,0 +1,7 @@
+Spark module not found — continuing without
+/usr/bin/bash: line 1: /sbin/start-worker.sh: No such file or directory
+srun: error: cm018: task 1: Exited with exit code 127
+srun: Terminating StepId=60097084.0
+slurmstepd: error: *** STEP 60097084.0 ON cm017 CANCELLED AT 2025-05-04T18:09:14 ***
+srun: error: cm017: task 0: Terminated
+srun: Force Terminated StepId=60097084.0
