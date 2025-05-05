@@ -258,37 +258,74 @@ def load_subjects_spark(spark: SparkSession, subject_ids: list):
             print(f"[ERROR] {sub_id}: {e}")
             return ([], None)
 
-
-
+    '''
+    The strategy here is to multithread getting the subjects information, then putting the subjects on disk (on external hard drive) and keeping a reference of these subjects in the dataframe
+  
+    '''
     print(sorted(subject_ids))
-    print(f"Unique: {len(set(subject_ids))}, Total: {len(subject_ids)}")
-    # ⚙️ RDD of subject IDs
-    rdd = spark.sparkContext.parallelize(subject_ids, numSlices=2)
+    num_subjects = len(set(subject_ids))
+    print(f"Unique: {num_subjects}, Total: {len(subject_ids)}")
+    
+    # Calculate optimal number of partitions
+    # Rule of thumb: aim for partitions that are 100-200MB each
+    # Another approach: 2-3 partitions per core in your cluster
+    num_cores = spark.sparkContext.defaultParallelism
+    recommended_partitions = max(num_cores * 2, num_subjects)
+    
+    print(f"Using {recommended_partitions} partitions (based on {num_cores} cores and {num_subjects} subjects)")
+    
+    # ⚙️ RDD of subject IDs with improved partitioning
+    rdd = spark.sparkContext.parallelize(subject_ids, numSlices=recommended_partitions)
 
     # Run per-subject processing
     result_rdd = rdd.map(processSubSpark)
 
-    # Unpack into two RDDs
-    epoch_rows_rdd = result_rdd.flatMap(lambda x: x[0])
-    metadata_rows_rdd = result_rdd.map(lambda x: x[1]).filter(lambda x: x is not None)
+    # Unpack into two RDDs and control partitioning
+    epoch_rows_rdd = result_rdd.flatMap(lambda x: x[0]).repartition(recommended_partitions)
+    metadata_rows_rdd = result_rdd.map(lambda x: x[1]).filter(lambda x: x is not None).repartition(min(recommended_partitions, num_subjects))
 
     # Convert to DataFrames
     df_epochs = spark.createDataFrame(epoch_rows_rdd)
     df_metadata = spark.createDataFrame(metadata_rows_rdd)
 
-    # Optional: partition/cache/write
-    df_epochs = df_epochs.repartition("SubjectID").persist(StorageLevel.MEMORY_AND_DISK)
-    df_metadata = df_metadata.repartition("SubjectID").persist(StorageLevel.MEMORY_AND_DISK)
-    
+    # Count to materialize (forces evaluation)
+    epoch_count = df_epochs.count()
+    metadata_count = df_metadata.count()
+    print(f"Created {epoch_count} epoch rows and {metadata_count} metadata rows")
 
+    # Repartition by SubjectID for optimal parquet write performance
+    # This creates one file per subject per partition
+    df_epochs = df_epochs.repartition(recommended_partitions, "SubjectID")
+    df_metadata = df_metadata.repartition(min(recommended_partitions, num_subjects), "SubjectID")
+    
     output_base_dir = "/Volumes/CrucialX6/spark_data"
 
-    df_epochs.write.mode("overwrite").partitionBy("SubjectID").parquet(f"{output_base_dir}/tmp_epochs/")
+    print("Writing epochs to parquet...")
+    df_epochs.write.mode("overwrite").partitionBy("SubjectID").option("maxRecordsPerFile", 1000000)  # Limit file size .parquet(f"{output_base_dir}/tmp_epochs/")
+    
+    print("Writing metadata to parquet...")
     df_metadata.write.mode("overwrite").partitionBy("SubjectID").parquet(f"{output_base_dir}/tmp_metadata/")
-    # do we need to unpersist ? 
-    return df_epochs, df_metadata
-
-
+    
+    # Explicitly force garbage collection to free memory
+    import gc
+    # Remove references to the DataFrames
+    df_epochs = None
+    df_metadata = None
+    epoch_rows_rdd = None
+    metadata_rows_rdd = None
+    result_rdd = None
+    rdd = None
+    # Force garbage collection
+    gc.collect()
+    spark.catalog.clearCache()  # Clear any cached data
+    
+    # Create references to the parquet files - these don't load data into memory yet
+    print("Creating references to parquet files...")
+    parquet_epochs = spark.read.parquet(f"{output_base_dir}/tmp_epochs/")
+    parquet_metadata = spark.read.parquet(f"{output_base_dir}/tmp_metadata/")
+    
+    # Return the references to the parquet files
+    return parquet_epochs, parquet_metadata
 
 from pyspark.sql import DataFrame
 def join_epochs_with_metadata(df_epochs: DataFrame, df_metadata: DataFrame) -> DataFrame:

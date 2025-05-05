@@ -93,8 +93,11 @@ def main():
         .appName("EEG-Analysis")
         .config("spark.driver.memory", f"{driver_memory_gb}g")
         .config("spark.executor.memory", f"{executor_memory_gb}g")
-        .config("spark.memory.fraction", "0.8")  # Fraction of heap used for execution and storage
-        .config("spark.memory.storageFraction", "0.3")  # Fraction used for storage (caching)
+        .config("spark.memory.fraction", "0.7")  # Fraction of heap used for execution and storage
+        .config("spark.memory.storageFraction", "0.5")  # Fraction used for storage (caching)
+        .config("spark.shuffle.spill.numElementsForceSpillThreshold", "5000")
+        # Add this to force more aggressive spillage
+        .config("spark.sql.shuffle.partitions", "200")  # Higher than default
         .config("spark.driver.maxResultSize", f"{int(driver_memory_gb * 0.5)}g")  # Limit result collection size
         
         # Storage locations on external SSD
@@ -105,7 +108,7 @@ def main():
         
         # Temporary file locations and GC settings
         .config("spark.driver.extraJavaOptions", 
-                f"-Djava.io.tmpdir={external_ssd_path}/tmp -XX:+UseG1GC -XX:+PrintGCDetails")
+                f"-Djava.io.tmpdir={external_ssd_path}/tmp -XX:+UseG1GC") # -XX:+PrintGCDetails") this is to print the memorry details 
         .config("spark.executor.extraJavaOptions", 
                 f"-Djava.io.tmpdir={external_ssd_path}/tmp -XX:+UseG1GC")
                 
@@ -200,7 +203,7 @@ def main():
     df.show(2)
     print(f"Loaded data shape: ({df.count()}, {len(df.columns)})")
 
-    # Optimize
+    # Optimize - might break since trying to get all subjects bruh
     df = df.repartition(1000).persist(StorageLevel.MEMORY_AND_DISK)
     
     start = time.time()
