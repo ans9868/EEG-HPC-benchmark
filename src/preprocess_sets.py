@@ -214,7 +214,7 @@ import mne
 import numpy as np
 from src.preprocess_sets import subPath
 
-def load_subjects_spark(spark: SparkSession, subject_ids: list):
+def load_subjects_spark(spark: SparkSession, subject_ids: list, output_base_dir="/Volumes/CrucialX6/spark_data", force_recompute=False):
     def processSubSpark(sub_id):
         try:
             raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
@@ -298,7 +298,7 @@ def load_subjects_spark(spark: SparkSession, subject_ids: list):
     df_epochs = df_epochs.repartition(recommended_partitions, "SubjectID")
     df_metadata = df_metadata.repartition(min(recommended_partitions, num_subjects), "SubjectID")
     
-    output_base_dir = "/Volumes/CrucialX6/spark_data"
+    # output_base_dir = "/Volumes/CrucialX6/spark_data"
 
     print("Writing epochs to parquet...")
     df_epochs.write.mode("overwrite").partitionBy("SubjectID").option("maxRecordsPerFile", 1000000)  # Limit file size .parquet(f"{output_base_dir}/tmp_epochs/")
