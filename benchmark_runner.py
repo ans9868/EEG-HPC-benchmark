@@ -25,7 +25,7 @@ ROOT_DIR = "."
 SRC_DIR = ROOT_DIR + "/src"
 sys.path.append("/Users/admin/projectst/EEG-Feature-Benchmark")
 
-from config_handler import initiate_config, load_config
+# from config_handler import initiate_config, load_config # this done because spark coudnl't load it in
 
 
 def main():
@@ -67,7 +67,7 @@ def main():
         .config("spark.sql.autoBroadcastJoinThreshold", "20MB")
 
         .getOrCreate()
-)
+    )
 
 
         
