@@ -279,10 +279,12 @@ def load_subjects_spark(spark: SparkSession, subject_ids: list):
     # Optional: partition/cache/write
     df_epochs = df_epochs.repartition("SubjectID").persist(StorageLevel.MEMORY_AND_DISK)
     df_metadata = df_metadata.repartition("SubjectID").persist(StorageLevel.MEMORY_AND_DISK)
+    
 
-    df_epochs.write.mode("overwrite").partitionBy("SubjectID").parquet("tmp_epochs/")
-    df_metadata.write.mode("overwrite").partitionBy("SubjectID").parquet("tmp_metadata/")
+    output_base_dir = "/Volumes/CrucialX6/spark_data"
 
+    df_epochs.write.mode("overwrite").partitionBy("SubjectID").parquet(f"{output_base_dir}/tmp_epochs/")
+    df_metadata.write.mode("overwrite").partitionBy("SubjectID").parquet(f"{output_base_dir}/tmp_metadata/")
     # do we need to unpersist ? 
     return df_epochs, df_metadata
 

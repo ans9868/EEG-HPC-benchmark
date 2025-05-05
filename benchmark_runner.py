@@ -11,7 +11,7 @@ from pyspark import SparkContext
 from pyspark.storagelevel import StorageLevel
 from pyspark.sql.functions import col
 from pyspark import StorageLevel
-
+import psutil 
 
 
 #from src.feature_extraction import run_full_pipeline  # adjust this if needed
@@ -70,14 +70,61 @@ def main():
     #     .getOrCreate()
     # )
    
-    spark = (SparkSession.builder 
-        .appName("EEG") 
-        .config("spark.sql.execution.arrow.pyspark.enabled", "true") 
-        .config("spark.executor.memory", "2g") 
-        .config("spark.driver.memory", "4g") 
-        .config("spark.sql.shuffle.partitions", "4") 
+# Path to your external SSD
+    external_ssd_path = "/Volumes/CrucialX6/spark_temp"
+    
+    # Calculate available system memory
+    system_memory_gb = psutil.virtual_memory().total / (1024 ** 3)
+    print(f"Total system memory: {system_memory_gb:.2f} GB")
+    
+    # Reserve memory for OS and other processes (25% or at least 4GB)
+    reserve_memory_gb = max(4, system_memory_gb * 0.25)
+    available_memory_gb = system_memory_gb - reserve_memory_gb
+    
+    # Calculate reasonable memory settings (rounded down)
+    driver_memory_gb = int(available_memory_gb * 0.6)  # 60% for driver
+    executor_memory_gb = int(available_memory_gb * 0.3)  # 30% for executor
+    
+    print(f"Setting driver memory: {driver_memory_gb}g")
+    print(f"Setting executor memory: {executor_memory_gb}g")
+    
+    # Create SparkSession with optimized memory configuration
+    spark = (SparkSession.builder
+        .appName("EEG-Analysis")
+        .config("spark.driver.memory", f"{driver_memory_gb}g")
+        .config("spark.executor.memory", f"{executor_memory_gb}g")
+        .config("spark.memory.fraction", "0.8")  # Fraction of heap used for execution and storage
+        .config("spark.memory.storageFraction", "0.3")  # Fraction used for storage (caching)
+        .config("spark.driver.maxResultSize", f"{int(driver_memory_gb * 0.5)}g")  # Limit result collection size
+        
+        # Storage locations on external SSD
+        .config("spark.local.dir", external_ssd_path)
+        .config("spark.worker.dir", external_ssd_path)
+        .config("spark.shuffle.service.index.cache.entries", "4096")
+        .config("spark.sql.warehouse.dir", f"{external_ssd_path}/warehouse")
+        
+        # Temporary file locations and GC settings
+        .config("spark.driver.extraJavaOptions", 
+                f"-Djava.io.tmpdir={external_ssd_path}/tmp -XX:+UseG1GC -XX:+PrintGCDetails")
+        .config("spark.executor.extraJavaOptions", 
+                f"-Djava.io.tmpdir={external_ssd_path}/tmp -XX:+UseG1GC")
+                
+        # Optimize disk spill performance
+        .config("spark.shuffle.file.buffer", "1m")
+        .config("spark.shuffle.spill.compress", "true")
+        .config("spark.shuffle.compress", "true")
+        
         .getOrCreate()
     )
+    
+    # Create necessary directories if they don't exist
+    os.makedirs(f"{external_ssd_path}/tmp", exist_ok=True)
+    os.makedirs(f"{external_ssd_path}/warehouse", exist_ok=True)
+    
+    # Verify configuration
+    print(f"Driver memory configured: {spark.conf.get('spark.driver.memory')}")
+    print(f"Storage directory: {spark.conf.get('spark.local.dir')}")
+    
         
     
     # Enable Apache Arrow (huge for pandas UDFs)
