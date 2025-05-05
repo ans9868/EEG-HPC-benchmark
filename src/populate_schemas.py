@@ -117,144 +117,160 @@ def extract_features_udtf(pdf: pd.DataFrame) -> pd.DataFrame:
 
     return pd.DataFrame([r.asDict() for r in results])
 
-def process_subjects_parallel(df, output_path="/Volumes/CrucialX6/spark_data", force_recompute=False):
+from pyspark.sql import SparkSession
+def process_subjects_parallel(spark: SparkSession, df, output_base_dir="/Volumes/CrucialX6/spark_data", 
+                             force_recompute=False):
     """
-    Process subjects in parallel using Spark's RDD transformations
-    to maintain both parallelism and memory safety.
+    Process subjects in parallel, using your existing extract_features_udtf.
+    
+    Parameters:
+    - spark: SparkSession
+    - df: DataFrame containing EEG data
+    - extract_features_udtf: Your existing UDTF that calls processEpoch
+    - output_base_dir: Base directory for I/O
+    - force_recompute: Whether to force recomputation
     """
     import gc
     import os
     import time
+    import glob
     from pyspark.sql import SparkSession
 
-    output_path=f"{output_path}/tmp_epochs_processed"
-
+    # Define paths
+    input_path = f"{output_base_dir}/tmp_input_data"
+    output_path = f"{output_base_dir}/tmp_epochs_processed"
     os.makedirs(output_path, exist_ok=True)
     
-    # Get the SparkSession
-    spark = SparkSession.getActiveSession() or SparkSession.builder.getOrCreate()
+    # Check if input data exists
+    input_exists = os.path.exists(input_path) and len(glob.glob(f"{input_path}/*.parquet")) > 0
+    if not input_exists or force_recompute:
+        print(f"Saving input DataFrame to {input_path}...")
+        df.write.mode("overwrite").parquet(input_path)
+    else:
+        print(f"Using existing input data from {input_path}")
     
-    # Function to check if a subject has already been processed
+    # Function to check if a subject is already processed
     def should_process_subject(subject_id):
         if force_recompute:
             return True
-            
-        # Check if the subject directory exists with parquet files
         subject_dir = f"{output_path}/SubjectID={subject_id}"
         if not os.path.exists(subject_dir):
             return True
-            
-        # Check if directory contains parquet files
-        import glob
         parquet_files = glob.glob(f"{subject_dir}/*.parquet")
         if not parquet_files:
             return True
-            
         return False
     
-    # Function to process a single subject
-    def process_single_subject(subject_id):
-        try:
-            print(f"Processing subject: {subject_id}")
-            start_time = time.time()
-            
-            # Filter to just this subject - this is done on the driver
-            # and distributed for processing
-            subject_df = df.filter(f"SubjectID = '{subject_id}'")
-            
-            # Process this subject - groupBy + applyInPandas
-            subject_result = subject_df.groupBy("SubjectID").applyInPandas(
-                extract_features_udtf,
-                schema="""
-                    SubjectID string,
-                    EpochID string,
-                    Electrode string,
-                    WaveBand string,
-                    FeatureName string,
-                    FeatureValue double,
-                    table_type string
-                """
-            )
-            
-            # Make sure output directory exists
-            subject_path = f"{output_path}/SubjectID={subject_id}"
-            os.makedirs(os.path.dirname(subject_path), exist_ok=True)
-            
-            # Write to a single file for this subject
-            subject_result = subject_result.coalesce(1)
-            subject_result.write.mode("overwrite").parquet(subject_path)
-            
-            # Count rows for reporting
-            result_count = subject_result.count()
-            
-            duration = time.time() - start_time
-            
-            # Return success metadata ie this goes to results :)
-            return {
-                "subject_id": subject_id,
-                "status": "success",
-                "count": result_count,
-                "duration": duration,
-                "error": None
-            }
+    # Define worker function to process a partition of subjects
+    def process_partition(subject_ids_iter):
+        """Process a partition of subject IDs - runs on the executor"""
+        from pyspark.sql import SparkSession
+        import traceback
         
-        except Exception as e:
-            import traceback
-            error_msg = str(e)
-            trace = traceback.format_exc()
-            print(f"Error processing subject {subject_id}: {error_msg}")
-            print(trace)
-            
-            # Return failure metadata 
-            return {
-                "subject_id": subject_id,
-                "status": "failed",
-                "count": 0,
-                "duration": 0,
-                "error": error_msg
-            }
+        # Create a worker SparkSession
+        worker_spark = SparkSession.builder.getOrCreate()
+        
+        # Process each subject in this partition
+        results = []
+        for subject_id in subject_ids_iter:
+            try:
+                print(f"Processing subject: {subject_id}")
+                start_time = time.time()
+                
+                # Read subject data
+                subject_df = worker_spark.read.parquet(input_path).filter(f"SubjectID = '{subject_id}'")
+                
+                # Process using your existing UDTF
+                subject_result = subject_df.groupBy("SubjectID").applyInPandas(
+                    extract_features_udtf,  # Your existing UDTF that calls processEpoch
+                    schema="""
+                        SubjectID string,
+                        EpochID string,
+                        Electrode string,
+                        WaveBand string,
+                        FeatureName string,
+                        FeatureValue double,
+                        table_type string
+                    """
+                )
+                
+                # Write results
+                subject_path = f"{output_path}/SubjectID={subject_id}"
+                os.makedirs(os.path.dirname(subject_path), exist_ok=True)
+                subject_result.coalesce(1).write.mode("overwrite").parquet(subject_path)
+                
+                # Get stats for reporting
+                result_count = subject_result.count()
+                duration = time.time() - start_time
+                
+                # Record success
+                results.append({
+                    "subject_id": subject_id,
+                    "status": "success",
+                    "count": result_count,
+                    "duration": duration,
+                    "error": None
+                })
+
+                    # Clean up memory for this subject
+                subject_result.unpersist()
+                subject_df.unpersist()
+                # Force Python garbage collection
+                import gc
+                gc.collect()
+                # Clear Spark cache for this subject
+                worker_spark.catalog.clearCache()
+                print(f"Cleaned up memory after processing subject {subject_id}")
+                
+            except Exception as e:
+                error_msg = str(e)
+                trace = traceback.format_exc()
+                print(f"Error processing subject {subject_id}: {error_msg}")
+                print(trace)
+                
+                # Record failure
+                results.append({
+                    "subject_id": subject_id,
+                    "status": "failed",
+                    "count": 0,
+                    "duration": 0, 
+                    "error": error_msg
+                })
+
+                try:
+                    import gc
+                    gc.collect()
+                    worker_spark.catalog.clearCache()
+                except:
+                    pass
+        
+        return results
     
-    # Get all unique subject IDs
+    # Get subjects to process
     subject_ids = [row.SubjectID for row in df.select("SubjectID").distinct().collect()]
     print(f"Found {len(subject_ids)} unique subjects")
     
-    # Filter to only subjects that need processing
-    subjects_to_process = []
-    for subject_id in subject_ids:
-        if should_process_subject(subject_id):
-            subjects_to_process.append(subject_id)
-            print(f"Subject {subject_id} will be processed")
-        else:
-            print(f"Subject {subject_id} already exists, skipping")
-    
+    subjects_to_process = [sid for sid in subject_ids if should_process_subject(sid)]
     if not subjects_to_process:
         print("No subjects need processing, using existing output")
         return spark.read.parquet(output_path)
     
     print(f"Processing {len(subjects_to_process)} subjects in parallel")
     
-    # Calculate optimal number of partitions
+    # Calculate partitions
     num_cores = spark.sparkContext.defaultParallelism
     num_subjects = len(subjects_to_process)
-    
-    # For memory safety, choose a partition count that won't process too many subjects at once
-    # But still maintains good parallelism
     recommended_partitions = min(num_cores * 2, num_subjects)
-    
     print(f"Using {recommended_partitions} partitions (based on {num_cores} cores)")
     
-    # Create RDD of subject IDs
+    # Create RDD and process
     rdd = spark.sparkContext.parallelize(subjects_to_process, numSlices=recommended_partitions)
-    
-    # Process each subject in parallel
-    results_rdd = rdd.map(process_single_subject)
-    
-    # Collect results of the process ie if the process was successful or not (small metadata, not the full data)
-    results = results_rdd.collect()
+    results_rdd = rdd.mapPartitions(process_partition)
+    all_results = results_rdd.flatMap(lambda x: x).collect()
     
     # Report results
-    successful = [r for r in results if r["status"] == "success"]
-    failed = [r for r in results if r["status"] == "failed"]
+    successful = [r for r in all_results if r["status"] == "success"]
+    failed = [r for r in all_results if r["status"] == "failed"]
     
     print(f"\nProcessing complete: {len(successful)} successful, {len(failed)} failed")
     
@@ -269,9 +285,9 @@ def process_subjects_parallel(df, output_path="/Volumes/CrucialX6/spark_data", f
         for f in failed:
             print(f"  - {f['subject_id']}: {f['error']}")
     
-    # Clear caches to free memory
+    # Clean up
     spark.catalog.clearCache()
     gc.collect()
     
-    # Return reference to the output data
+    # Return reference to output data
     return spark.read.parquet(output_path)

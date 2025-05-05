@@ -222,7 +222,7 @@ def main():
     #
     print("[SPARK] Applying extract_features_udtf...")
     
-    subs = process_subjects_parallel(df, external_ssd_path)
+    subs = process_subjects_parallel(spark, df, output_base_dir=external_ssd_path)
     # subs = (
     #     df.groupBy("SubjectID").applyInPandas(
     #         extract_features_udtf,
