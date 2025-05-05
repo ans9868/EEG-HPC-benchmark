@@ -131,17 +131,19 @@ def main():
     subject_df = load_subjects_df(spark)
 
     # Load data for target subjects
-    subject_ids = ['sub-001', 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
+    # subject_ids = ['sub-001', 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
+    subject_ids = [f'sub-{i:03d}' for i in range(1, 89)]
     # subject_ids = ['sub-003'] #, 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
     print("loading subjects")
+    abs_start = time.time()
     df_epochs, df_metadata = load_subjects_spark(spark, subject_ids)
     
     print("got epochs and metadata")
     
     print("df_epochs")
-    df_epochs.show(2)
+    # df_epochs.show(2)
     print("df_metadata")
-    df_metadata.show(2)
+    # df_metadata.show(2)
     # Join to add metadata (sfreq, ch_names) to each epoch
     print("joining epoch table and metatable ")
     df = join_epochs_with_metadata(df_epochs, df_metadata)
@@ -183,6 +185,7 @@ def main():
     # Benchmark time
     total_time = end - start
     print(f"✅ Total runtime: {total_time / 60:.2f} minutes")
+    print(f"✅ absolute Total runtime: {end - abs_start / 60:.2f} minutes")
     print(f"Memory usage after: {psutil.virtual_memory().percent}%")
 
     subs.show(3)

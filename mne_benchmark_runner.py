@@ -98,10 +98,13 @@ def main():
     # load_epochs(subjects=None, derivatives=derivatives, windowLength=windowLength, stepSize=stepSize):
     # Load data once to use for both benchmarks
     print("start")
-    start = time.time()
-    subjects = ['sub-001', 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
+    abs_start = time.time()
+    # subjects = ['sub-001', 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
+    # subjects = ['sub-001']
+    subjects = [f'sub-{i:03d}' for i in range(1, 89)]
     X = load_epochs(subjects)
     
+    start = time.time()
 
     print("initiate config")
     initiate_config()
@@ -126,6 +129,7 @@ def main():
     #     print("Warning: Results differ between methods!")
     end = time.time()
     print(f"Total runtime: {(end - start) / 60:.2f} minutes")
+    print(f"Total absolut runtime: {(end - abs_start) / 60:.2f} minutes")
     print(f"Memory usage after: {psutil.virtual_memory().percent}%")
     print(type(fe_features))
     print(fe_features.shape)
