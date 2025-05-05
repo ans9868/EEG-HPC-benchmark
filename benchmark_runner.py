@@ -146,7 +146,7 @@ def main():
     print("config loaded: ", config)
 
     # Making all the modules files available to spark
-    from populate_schemas import load_subjects_df, extract_features_udtf
+    from populate_schemas import load_subjects_df, process_subjects_parallel, extract_features_udtf
     # from populate_schemas import extract_features_udtf
     from feature_extraction import processEpoch, processSub
     from schema_definition import get_feature_schema, get_subject_schema
@@ -221,20 +221,22 @@ def main():
     # Apply the UDTF: One subject group at a time
     #
     print("[SPARK] Applying extract_features_udtf...")
-    subs = (
-        df.groupBy("SubjectID").applyInPandas(
-            extract_features_udtf,
-            schema="""
-                SubjectID string,
-                EpochID string,
-                Electrode string,
-                WaveBand string,
-                FeatureName string,
-                FeatureValue double,
-                table_type string
-            """
-        )
-    )
+    
+    subs = process_subjects_parallel(df, external_ssd_path)
+    # subs = (
+    #     df.groupBy("SubjectID").applyInPandas(
+    #         extract_features_udtf,
+    #         schema="""
+    #             SubjectID string,
+    #             EpochID string,
+    #             Electrode string,
+    #             WaveBand string,
+    #             FeatureName string,
+    #             FeatureValue double,
+    #             table_type string
+    #         """
+    #     )
+    # )
     
     subs = subs.repartition("SubjectID")
     rows = subs.count()
