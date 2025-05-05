@@ -203,9 +203,20 @@ def main():
     df.show(2)
     print(f"Loaded data shape: ({df.count()}, {len(df.columns)})")
 
+
+    '''
+    total_subjects = df.select("SubjectID").distinct().count()
+    available_executors = 5  # Replace with your cluster's executor count
+    partitions_per_executor = 2  # Adjust based on memory availability
+
+    num_partitions = min(total_subjects, available_executors * partitions_per_executor)
+    '''
+    num_partitions = 88 #this can and should be optimised later
+
     # Optimize - might break since trying to get all subjects bruh
-    df = df.repartition(1000).persist(StorageLevel.MEMORY_AND_DISK)
-    
+    # df = df.repartition(num_partitions , "SubjectID").persist(StorageLevel.MEMORY_AND_DISK)
+   
+    print("repartition finished")
     start = time.time()
     # Apply the UDTF: One subject group at a time
     #
@@ -225,9 +236,14 @@ def main():
         )
     )
     
-    subs = subs.repartition(1000).persist(StorageLevel.MEMORY_AND_DISK)
+    subs = subs.repartition("SubjectID")
     rows = subs.count()
+    
     end = time.time()
+
+    print("[SPARK] Saving data partitioned by SubjectID...")
+    subs.write.partitionBy("SubjectID").parquet("output_path/features_by_subject")
+
     cols = len(subs.columns)
     print(f"✅ Shape of extracted features for subject(s): ({rows}, {cols})")
     print("unique subjects")
