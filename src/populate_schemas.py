@@ -116,6 +116,9 @@ def extract_features_udtf(pdf: pd.DataFrame) -> pd.DataFrame:
             print(f"[ERROR] {subject_id}:{epoch_id} - {e}")
 
     return pd.DataFrame([r.asDict() for r in results])
+
+
+
 from pyspark.sql import SparkSession
 
 def process_subjects_parallel(spark: SparkSession, epochs_df, metadata_df, output_base_dir="/Volumes/CrucialX6/spark_data", 
@@ -183,17 +186,39 @@ def process_subjects_parallel(spark: SparkSession, epochs_df, metadata_df, outpu
         return False
     
     # Define worker function to process a partition of subjects
+   
+    # Create broadcast variables for the paths
+    epochs_path_b = spark.sparkContext.broadcast(epochs_path)
+    metadata_path_b = spark.sparkContext.broadcast(metadata_path)
+    output_path_b = spark.sparkContext.broadcast(output_path)
+    
+    # Modify the worker function to avoid SparkSession creation
     def process_partition(subject_ids_iter):
-        """Process a partition of subject IDs with separate metadata access"""
-        from pyspark.sql import SparkSession
+        """Process a partition of subject IDs without creating a new SparkSession"""
         import traceback
+        import pandas as pd
         
-        # Create a worker SparkSession
-        worker_spark = SparkSession.builder.getOrCreate()
+        # Get paths from broadcast variables
+        epochs_path = epochs_path_b.value
+        metadata_path = metadata_path_b.value
+        output_path = output_path_b.value
         
-        # Load metadata once (it's typically much smaller than epochs)
-        metadata = worker_spark.read.parquet(metadata_path)
-        metadata.createOrReplaceTempView("metadata")
+        # Import the necessary functions for processing
+        try:
+            # For local pandas processing
+            from pandas import DataFrame
+            import numpy as np
+            
+            # For loading EEG data format
+            import mne
+
+            # Import the feature extraction function
+            try:
+                from src.feature_extraction import processEpoch
+            except ImportError:
+                from feature_extraction import processEpoch
+        except Exception as e:
+            return [{"subject_id": "import_error", "status": "failed", "error": str(e)}]
         
         # Process each subject in this partition
         results = []
@@ -202,63 +227,103 @@ def process_subjects_parallel(spark: SparkSession, epochs_df, metadata_df, outpu
                 print(f"Processing subject: {subject_id}")
                 start_time = time.time()
                 
-                # Read only this subject's epochs (more efficient than filtering the entire dataset)
-                subject_epochs = worker_spark.read.parquet(epochs_path).filter(f"SubjectID = '{subject_id}'")
-                subject_epochs.createOrReplaceTempView("epochs")
+                # Load subject data files
+                subject_epochs_path = f"{epochs_path}/SubjectID={subject_id}"
+                subject_metadata_path = f"{metadata_path}/SubjectID={subject_id}"
                 
-                # Join with metadata efficiently using SQL
-                subject_df = worker_spark.sql(f"""
-                    SELECT e.*, m.SFreq, m.ChannelNames 
-                    FROM epochs e
-                    JOIN metadata m ON e.SubjectID = m.SubjectID
-                    WHERE e.SubjectID = '{subject_id}'
-                """)
+                # Read the parquet files directly into pandas 
+                import glob
+                import pandas as pd
                 
-                # Process using your existing UDTF
-                subject_result = subject_df.groupBy("SubjectID").applyInPandas(
-                    extract_features_udtf,  # Your existing UDTF that calls processEpoch
-                    schema="""
-                        SubjectID string,
-                        EpochID string,
-                        Electrode string,
-                        WaveBand string,
-                        FeatureName string,
-                        FeatureValue double,
-                        table_type string
-                    """
-                )
+                # Read epochs data
+                epoch_files = glob.glob(f"{subject_epochs_path}/*.parquet")
+                if not epoch_files:
+                    raise FileNotFoundError(f"No epoch files found for {subject_id}")
+
+
+                epochs_dfs = [pd.read_parquet(f) for f in epoch_files]
+                epochs_df = pd.concat(epochs_dfs) if len(epochs_dfs) > 1 else epochs_dfs[0]
                 
-                # Write results
-                subject_path = f"{output_path}/SubjectID={subject_id}"
-                os.makedirs(os.path.dirname(subject_path), exist_ok=True)
-                subject_result.coalesce(1).write.mode("overwrite").parquet(subject_path)
-                print(f"Wrote results for {subject_id}")
+                # Add SubjectID to epochs_df if it doesn't exist
+                if 'SubjectID' not in epochs_df.columns:
+                    epochs_df['SubjectID'] = subject_id
                 
-                # Get stats for reporting
-                result_count = subject_result.count()
-                duration = time.time() - start_time
+                # Read metadata
+                meta_files = glob.glob(f"{subject_metadata_path}/*.parquet")
+                if not meta_files:
+                    raise FileNotFoundError(f"No metadata files found for {subject_id}")
+                
+                metadata_df = pd.read_parquet(meta_files[0])
+               
+                
+                # Add SubjectID to metadata_df if it doesn't exist
+                if 'SubjectID' not in metadata_df.columns:
+                    metadata_df['SubjectID'] = subject_id
+
+                # Get SFreq and ChannelNames from metadata
+                sfreq = float(metadata_df['SFreq'].iloc[0])
+                channel_names = metadata_df['ChannelNames'].iloc[0]
+                
+                # Process each epoch
+                feature_rows = []
+                for _, row in epochs_df.iterrows():
+                    subject_id = row["SubjectID"]
+                    epoch_id = row["EpochID"]
+
+
+                    eeg_data = np.array(row["EEG"])
+                    # Make sure channels are consistent
+                    eeg_data = np.stack(eeg_data, axis=0)
+                   
+                    # this is debatebly safer , will need to check this out 
+                    # if isinstance(eeg_data[0], (list, np.ndarray)):  # If data is already 2D
+                    #     eeg_data = np.stack(eeg_data, axis=0)
+                    #
+
+                    lens = [len(ch) for ch in eeg_data]
+                    min_len = min(lens)
+                    max_len = max(lens)
+                    if min_len != max_len:
+                        print(f"[WARN] Epoch {epoch_id} has uneven channel lengths")
+                        print(f"       → Shortest = {min_len}, Longest = {max_len}")
+                        print(f"       → Trimming all to {min_len}")
+                        eeg_data = [ch[:min_len] for ch in eeg_data]
+                    
+                    # Process the epoch
+                    try:
+                        epoch_features = processEpoch(
+                            subject_id,
+                            epoch_id,
+                            eeg_data,
+                            channelNames=channel_names,
+                            sfreq=sfreq
+                        )
+                        feature_rows.extend(epoch_features)
+                    except Exception as e:
+                        print(f"[ERROR] {subject_id}:{epoch_id} - {e}")
+                
+                # Convert rows to DataFrame
+                result_df = pd.DataFrame([r.asDict() for r in feature_rows])
+                
+                # Save to parquet
+                subject_output_path = f"{output_path}/SubjectID={subject_id}"
+                os.makedirs(os.path.dirname(subject_output_path), exist_ok=True)
+                result_df.to_parquet(f"{subject_output_path}/features.parquet", index=False)
                 
                 # Record success
+                duration = time.time() - start_time
                 results.append({
                     "subject_id": subject_id,
-                    "status": "success",
-                    "count": result_count,
+                    "status": "success", 
+                    "count": len(result_df),
                     "duration": duration,
                     "error": None
                 })
-
-                # Clean up memory for this subject
-                subject_result.unpersist()
-                subject_df.unpersist()
-                subject_epochs.unpersist()
                 
-                # Force Python garbage collection
+                # Clean up memory
                 import gc
+                del result_df, epochs_df, metadata_df, feature_rows
                 gc.collect()
-                
-                # Clear Spark cache for this subject
-                worker_spark.catalog.clearCache()
-                print(f"Cleaned up memory after processing subject {subject_id}")
                 
             except Exception as e:
                 error_msg = str(e)
@@ -266,25 +331,18 @@ def process_subjects_parallel(spark: SparkSession, epochs_df, metadata_df, outpu
                 print(f"Error processing subject {subject_id}: {error_msg}")
                 print(trace)
                 
-                # Record failure
                 results.append({
                     "subject_id": subject_id,
                     "status": "failed",
                     "count": 0,
-                    "duration": 0, 
+                    "duration": 0,
                     "error": error_msg
                 })
-
-                # Clean up memory even on failure
-                try:
-                    import gc
-                    gc.collect()
-                    worker_spark.catalog.clearCache()
-                except:
-                    pass
         
-        return results
-    
+        return results   
+
+
+
     # Get subjects to process (from epochs_df which contains all subjects)
     subject_ids = [row.SubjectID for row in epochs_df.select("SubjectID").distinct().collect()]
     print(f"Found {len(subject_ids)} unique subjects")
