@@ -185,6 +185,7 @@ def main():
     subject_ids = [f'sub-{i:03d}' for i in range(1, 89)]
     # subject_ids = ['sub-003'] #, 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
     print("loading subjects")
+
     abs_start = time.time()
     df_epochs, df_metadata = load_subjects_spark(spark, subject_ids)
     
@@ -223,6 +224,7 @@ def main():
     # Apply the UDTF: One subject group at a time
     
     print("[SPARK] Applying process_subjects_parallel (this calls the udtf) :)...")
+    
     start = time.time()
     
     subs = process_subjects_parallel(
@@ -232,20 +234,6 @@ def main():
        output_base_dir="/Volumes/CrucialX6/spark_data"
     ) 
    
-
-    #     df.groupBy("SubjectID").applyInPandas(
-    #         extract_features_udtf,
-    #         schema="""
-    #             SubjectID string,
-    #             EpochID string,
-    #             Electrode string,
-    #             WaveBand string,
-    #             FeatureName string,
-    #             FeatureValue double,
-    #             table_type string
-    #         """
-    #     )
-    # )
     
     subs = subs.repartition("SubjectID")
     rows = subs.count()
@@ -257,17 +245,16 @@ def main():
     cols = len(subs.columns)
     print(f"✅ Shape of extracted features for subject(s): ({rows}, {cols})")
     print("unique subjects")
-    df.select("SubjectID").distinct().show()
     # Benchmark time
     total_time = end - start
     print(f"✅ Total runtime: {total_time / 60:.2f} minutes")
-    print(f"✅ absolute Total runtime: {end - abs_start / 60:.2f} minutes")
+    print(f"✅ absolute Total runtime: {(end - abs_start) / 60:.2f} minutes")
     print(f"Memory usage after: {psutil.virtual_memory().percent}%")
 
+    df.select("SubjectID").distinct().show()
     subs.show(3)
     spark.stop()
     print("=== FINISHED ===")
-    print("elapsed time of the udtf: ", )
    
     spark.stop()
 
