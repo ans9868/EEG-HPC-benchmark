@@ -116,17 +116,17 @@ def extract_features_udtf(pdf: pd.DataFrame) -> pd.DataFrame:
             print(f"[ERROR] {subject_id}:{epoch_id} - {e}")
 
     return pd.DataFrame([r.asDict() for r in results])
-
 from pyspark.sql import SparkSession
-def process_subjects_parallel(spark: SparkSession, df, output_base_dir="/Volumes/CrucialX6/spark_data", 
+
+def process_subjects_parallel(spark: SparkSession, epochs_df, metadata_df, output_base_dir="/Volumes/CrucialX6/spark_data", 
                              force_recompute=False):
     """
-    Process subjects in parallel, using your existing extract_features_udtf.
+    Process subjects in parallel using separate epochs and metadata DataFrames.
     
     Parameters:
     - spark: SparkSession
-    - df: DataFrame containing EEG data
-    - extract_features_udtf: Your existing UDTF that calls processEpoch
+    - epochs_df: DataFrame containing EEG epoch data
+    - metadata_df: DataFrame containing metadata (SFreq, ChannelNames, etc.)
     - output_base_dir: Base directory for I/O
     - force_recompute: Whether to force recomputation
     """
@@ -135,19 +135,40 @@ def process_subjects_parallel(spark: SparkSession, df, output_base_dir="/Volumes
     import time
     import glob
     from pyspark.sql import SparkSession
-
-    # Define paths
-    input_path = f"{output_base_dir}/tmp_input_data"
+    print("In process_subjects_parallel")
+    
+    # Define paths with correct directory structure
+    epochs_path = f"{output_base_dir}/tmp_epochs"
+    metadata_path = f"{output_base_dir}/tmp_metadata"
     output_path = f"{output_base_dir}/tmp_epochs_processed"
     os.makedirs(output_path, exist_ok=True)
     
-    # Check if input data exists
-    input_exists = os.path.exists(input_path) and len(glob.glob(f"{input_path}/*.parquet")) > 0
-    if not input_exists or force_recompute:
-        print(f"Saving input DataFrame to {input_path}...")
-        df.write.mode("overwrite").parquet(input_path)
+    # Improved check for partitioned parquet data
+    def check_parquet_exists(path):
+        # First check if the directory exists
+        if not os.path.exists(path):
+            return False
+            
+        # Then check if there are any parquet files in any subdirectory
+        import glob
+        all_parquet_files = glob.glob(f"{path}/**/*.parquet", recursive=True)
+        return len(all_parquet_files) > 0
+    
+    # Check if epochs data exists with the improved function
+    epochs_exists = check_parquet_exists(epochs_path)
+    if not epochs_exists or force_recompute:
+        print(f"Saving epochs DataFrame to {epochs_path}...")
+        epochs_df.write.mode("overwrite").parquet(epochs_path)
     else:
-        print(f"Using existing input data from {input_path}")
+        print(f"Using existing epochs data from {epochs_path}")
+    
+    # Similarly for metadata
+    metadata_exists = check_parquet_exists(metadata_path)
+    if not metadata_exists or force_recompute:
+        print(f"Saving metadata DataFrame to {metadata_path}...")
+        metadata_df.write.mode("overwrite").parquet(metadata_path)
+    else:
+        print(f"Using existing metadata from {metadata_path}")
     
     # Function to check if a subject is already processed
     def should_process_subject(subject_id):
@@ -163,12 +184,16 @@ def process_subjects_parallel(spark: SparkSession, df, output_base_dir="/Volumes
     
     # Define worker function to process a partition of subjects
     def process_partition(subject_ids_iter):
-        """Process a partition of subject IDs - runs on the executor"""
+        """Process a partition of subject IDs with separate metadata access"""
         from pyspark.sql import SparkSession
         import traceback
         
         # Create a worker SparkSession
         worker_spark = SparkSession.builder.getOrCreate()
+        
+        # Load metadata once (it's typically much smaller than epochs)
+        metadata = worker_spark.read.parquet(metadata_path)
+        metadata.createOrReplaceTempView("metadata")
         
         # Process each subject in this partition
         results = []
@@ -177,8 +202,17 @@ def process_subjects_parallel(spark: SparkSession, df, output_base_dir="/Volumes
                 print(f"Processing subject: {subject_id}")
                 start_time = time.time()
                 
-                # Read subject data
-                subject_df = worker_spark.read.parquet(input_path).filter(f"SubjectID = '{subject_id}'")
+                # Read only this subject's epochs (more efficient than filtering the entire dataset)
+                subject_epochs = worker_spark.read.parquet(epochs_path).filter(f"SubjectID = '{subject_id}'")
+                subject_epochs.createOrReplaceTempView("epochs")
+                
+                # Join with metadata efficiently using SQL
+                subject_df = worker_spark.sql(f"""
+                    SELECT e.*, m.SFreq, m.ChannelNames 
+                    FROM epochs e
+                    JOIN metadata m ON e.SubjectID = m.SubjectID
+                    WHERE e.SubjectID = '{subject_id}'
+                """)
                 
                 # Process using your existing UDTF
                 subject_result = subject_df.groupBy("SubjectID").applyInPandas(
@@ -198,6 +232,7 @@ def process_subjects_parallel(spark: SparkSession, df, output_base_dir="/Volumes
                 subject_path = f"{output_path}/SubjectID={subject_id}"
                 os.makedirs(os.path.dirname(subject_path), exist_ok=True)
                 subject_result.coalesce(1).write.mode("overwrite").parquet(subject_path)
+                print(f"Wrote results for {subject_id}")
                 
                 # Get stats for reporting
                 result_count = subject_result.count()
@@ -212,12 +247,15 @@ def process_subjects_parallel(spark: SparkSession, df, output_base_dir="/Volumes
                     "error": None
                 })
 
-                    # Clean up memory for this subject
+                # Clean up memory for this subject
                 subject_result.unpersist()
                 subject_df.unpersist()
+                subject_epochs.unpersist()
+                
                 # Force Python garbage collection
                 import gc
                 gc.collect()
+                
                 # Clear Spark cache for this subject
                 worker_spark.catalog.clearCache()
                 print(f"Cleaned up memory after processing subject {subject_id}")
@@ -237,6 +275,7 @@ def process_subjects_parallel(spark: SparkSession, df, output_base_dir="/Volumes
                     "error": error_msg
                 })
 
+                # Clean up memory even on failure
                 try:
                     import gc
                     gc.collect()
@@ -246,8 +285,8 @@ def process_subjects_parallel(spark: SparkSession, df, output_base_dir="/Volumes
         
         return results
     
-    # Get subjects to process
-    subject_ids = [row.SubjectID for row in df.select("SubjectID").distinct().collect()]
+    # Get subjects to process (from epochs_df which contains all subjects)
+    subject_ids = [row.SubjectID for row in epochs_df.select("SubjectID").distinct().collect()]
     print(f"Found {len(subject_ids)} unique subjects")
     
     subjects_to_process = [sid for sid in subject_ids if should_process_subject(sid)]

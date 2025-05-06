@@ -189,12 +189,14 @@ def main():
     df_epochs, df_metadata = load_subjects_spark(spark, subject_ids)
     
     print("got epochs and metadata")
-    
+    print("time in secs", time.time() - abs_start) 
     print("df_epochs")
-    # df_epochs.show(2)
+    df_epochs.show(2)
     print("df_metadata")
-    # df_metadata.show(2)
+    df_metadata.show(2)
     # Join to add metadata (sfreq, ch_names) to each epoch
+    
+
     print("joining epoch table and metatable ")
     df = join_epochs_with_metadata(df_epochs, df_metadata)
 
@@ -202,8 +204,10 @@ def main():
     df.printSchema()
     df.show(2)
     print(f"Loaded data shape: ({df.count()}, {len(df.columns)})")
-
-
+    
+    # Stopping here to debug latter...
+    
+    
     '''
     total_subjects = df.select("SubjectID").distinct().count()
     available_executors = 5  # Replace with your cluster's executor count
@@ -215,15 +219,20 @@ def main():
 
     # Optimize - might break since trying to get all subjects bruh
     # df = df.repartition(num_partitions , "SubjectID").persist(StorageLevel.MEMORY_AND_DISK)
-   
-    print("repartition finished")
-    start = time.time()
-    # Apply the UDTF: One subject group at a time
-    #
-    print("[SPARK] Applying extract_features_udtf...")
     
-    subs = process_subjects_parallel(spark, df, output_base_dir=external_ssd_path)
-    # subs = (
+    # Apply the UDTF: One subject group at a time
+    
+    print("[SPARK] Applying process_subjects_parallel (this calls the udtf) :)...")
+    start = time.time()
+    
+    subs = process_subjects_parallel(
+       spark=spark, 
+       epochs_df=df_epochs, 
+       metadata_df=df_metadata, 
+       output_base_dir="/Volumes/CrucialX6/spark_data"
+    ) 
+   
+
     #     df.groupBy("SubjectID").applyInPandas(
     #         extract_features_udtf,
     #         schema="""
