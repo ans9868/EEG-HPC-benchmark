@@ -1,129 +1,93 @@
-[2025-05-05 23:23:13] Picked up _JAVA_OPTIONS: -Xmx12g -Xms4g
-[2025-05-05 23:23:13] Picked up _JAVA_OPTIONS: -Xmx12g -Xms4g
-[2025-05-05 23:23:14] 25/05/05 23:23:14 WARN SparkConf: The configuration key 'spark.shuffle.service.index.cache.entries' has been deprecated as of Spark 2.3.0 and may be removed in the future. Not used anymore. Please use spark.shuffle.service.index.cache.size
-[2025-05-05 23:23:14] 25/05/05 23:23:14 WARN SparkConf: The configuration key 'spark.shuffle.service.index.cache.entries' has been deprecated as of Spark 2.3.0 and may be removed in the future. Not used anymore. Please use spark.shuffle.service.index.cache.size
-[2025-05-05 23:23:14] Setting default log level to "WARN".
-[2025-05-05 23:23:14] To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
-[2025-05-05 23:23:14] 25/05/05 23:23:14 WARN SparkConf: The configuration key 'spark.shuffle.service.index.cache.entries' has been deprecated as of Spark 2.3.0 and may be removed in the future. Not used anymore. Please use spark.shuffle.service.index.cache.size
-[2025-05-05 23:23:14] 25/05/05 23:23:14 WARN SparkConf: The configuration key 'spark.shuffle.service.index.cache.entries' has been deprecated as of Spark 2.3.0 and may be removed in the future. Not used anymore. Please use spark.shuffle.service.index.cache.size
-[2025-05-05 23:23:14] 25/05/05 23:23:14 WARN SparkConf: The configuration key 'spark.shuffle.service.index.cache.entries' has been deprecated as of Spark 2.3.0 and may be removed in the future. Not used anymore. Please use spark.shuffle.service.index.cache.size
-[2025-05-05 23:23:14] 25/05/05 23:23:14 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
-[2025-05-05 23:23:14] 25/05/05 23:23:14 WARN SparkConf: Note that spark.local.dir will be overridden by the value set by the cluster manager (via SPARK_LOCAL_DIRS in mesos/standalone/kubernetes and LOCAL_DIRS in YARN).
-[2025-05-05 23:23:14] 25/05/05 23:23:14 WARN Utils: Service 'SparkUI' could not bind on port 4040. Attempting port 4041.
-[2025-05-05 23:23:18] 25/05/05 23:23:18 WARN SparkContext: The path ./src/preprocess_sets.py has been added already. Overwriting of added paths is not supported in the current version.
-[2025-05-05 23:23:19] [Stage 0:>                                                        (0 + 10) / 88]Config not found in feature_extraction.py
-[2025-05-05 23:23:19] Config not found in feature_extraction.py
-[2025-05-05 23:23:19] Config not found in feature_extraction.py
-[2025-05-05 23:23:19] Config not found in feature_extraction.py
-[2025-05-05 23:23:19] Config not found in feature_extraction.py
-[2025-05-05 23:23:19] Config not found in feature_extraction.py
-[2025-05-05 23:23:19] Config not found in feature_extraction.py
-[2025-05-05 23:23:19] Config not found in feature_extraction.py
-[2025-05-05 23:23:19] Config not found in feature_extraction.py
-[2025-05-05 23:23:19] Config not found in feature_extraction.py
-[2025-05-05 23:23:20] subPath sub-003
-[2025-05-05 23:23:20] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:23:20] Derivatives: True
-[2025-05-05 23:23:20] Derivatives from config: True
-[2025-05-05 23:23:20] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-003/eeg/sub-003_task-eyesclosed_eeg.set
-[2025-05-05 23:23:20] subPath sub-008
-[2025-05-05 23:23:20] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:23:20] Derivatives: True
-[2025-05-05 23:23:20] Derivatives from config: True
-[2025-05-05 23:23:20] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-008/eeg/sub-008_task-eyesclosed_eeg.set
-[2025-05-05 23:23:20] subPath sub-005
-[2025-05-05 23:23:20] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:23:20] Derivatives: True
-[2025-05-05 23:23:20] Derivatives from config: True
-[2025-05-05 23:23:20] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-005/eeg/sub-005_task-eyesclosed_eeg.set
-[2025-05-05 23:23:20] subPath sub-006
-[2025-05-05 23:23:20] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:23:20] Derivatives: True
-[2025-05-05 23:23:20] Derivatives from config: True
-[2025-05-05 23:23:20] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-006/eeg/sub-006_task-eyesclosed_eeg.set
-[2025-05-05 23:23:20] subPath sub-001
-[2025-05-05 23:23:20] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:23:20] Derivatives: True
-[2025-05-05 23:23:20] Derivatives from config: True
-[2025-05-05 23:23:20] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-001/eeg/sub-001_task-eyesclosed_eeg.set
-[2025-05-05 23:23:20] subPath sub-007
-[2025-05-05 23:23:20] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:23:20] Derivatives: True
-[2025-05-05 23:23:20] Derivatives from config: True
-[2025-05-05 23:23:20] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-007/eeg/sub-007_task-eyesclosed_eeg.set
-[2025-05-05 23:23:20] subPath sub-009
-[2025-05-05 23:23:20] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:23:20] Derivatives: True
-[2025-05-05 23:23:20] Derivatives from config: True
-[2025-05-05 23:23:20] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-009/eeg/sub-009_task-eyesclosed_eeg.set
-[2025-05-05 23:23:20] subPath sub-004
-[2025-05-05 23:23:20] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:23:20] Derivatives: True
-[2025-05-05 23:23:20] Derivatives from config: True
-[2025-05-05 23:23:20] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-004/eeg/sub-004_task-eyesclosed_eeg.set
-[2025-05-05 23:23:20] subPath sub-010
-[2025-05-05 23:23:20] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:23:20] Derivatives: True
-[2025-05-05 23:23:20] Derivatives from config: True
-[2025-05-05 23:23:20] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-010/eeg/sub-010_task-eyesclosed_eeg.set
-[2025-05-05 23:23:20] subPath sub-002
-[2025-05-05 23:23:20] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:23:20] Derivatives: True
-[2025-05-05 23:23:20] Derivatives from config: True
-[2025-05-05 23:23:20] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-002/eeg/sub-002_task-eyesclosed_eeg.set
-[2025-05-05 23:23:20] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
-[2025-05-05 23:23:20]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
-[2025-05-05 23:23:20] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
-[2025-05-05 23:23:20]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
-[2025-05-05 23:23:20] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
-[2025-05-05 23:23:20]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
-[2025-05-05 23:23:20] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
-[2025-05-05 23:23:20]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
-[2025-05-05 23:23:20] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
-[2025-05-05 23:23:20]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
-[2025-05-05 23:23:20] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
-[2025-05-05 23:23:20]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
-[2025-05-05 23:23:20] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
-[2025-05-05 23:23:20]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
-[2025-05-05 23:23:35] subPath sub-011
-[2025-05-05 23:23:35] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:23:35] Derivatives: True
-[2025-05-05 23:23:35] Derivatives from config: True
-[2025-05-05 23:23:35] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-011/eeg/sub-011_task-eyesclosed_eeg.set
-[2025-05-05 23:23:36] [Stage 0:>                                                        (0 + 11) / 88][Stage 0:>                                                        (1 + 10) / 88]/Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
-[2025-05-05 23:23:36]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
-[2025-05-05 23:24:25] subPath sub-012
-[2025-05-05 23:24:25] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:24:25] Derivatives: True
-[2025-05-05 23:24:25] Derivatives from config: True
-[2025-05-05 23:24:25] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-012/eeg/sub-012_task-eyesclosed_eeg.set
-[2025-05-05 23:24:26] [Stage 0:=>                                                       (2 + 10) / 88]/Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
-[2025-05-05 23:24:26]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
-[2025-05-05 23:24:26] subPath sub-013
-[2025-05-05 23:24:26] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:24:26] Derivatives: True
-[2025-05-05 23:24:26] Derivatives from config: True
-[2025-05-05 23:24:26] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-013/eeg/sub-013_task-eyesclosed_eeg.set
-[2025-05-05 23:24:26] [Stage 0:=>                                                       (3 + 10) / 88]subPath sub-014
-[2025-05-05 23:24:26] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:24:26] Derivatives: True
-[2025-05-05 23:24:26] Derivatives from config: True
-[2025-05-05 23:24:26] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-014/eeg/sub-014_task-eyesclosed_eeg.set
-[2025-05-05 23:24:26] [Stage 0:==>                                                      (4 + 10) / 88]/Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
-[2025-05-05 23:24:26]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
-[2025-05-05 23:24:27] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
-[2025-05-05 23:24:27]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
-[2025-05-05 23:24:30] subPath sub-015
-[2025-05-05 23:24:30] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:24:30] Derivatives: True
-[2025-05-05 23:24:30] Derivatives from config: True
-[2025-05-05 23:24:30] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-015/eeg/sub-015_task-eyesclosed_eeg.set
-[2025-05-05 23:24:31] [Stage 0:===>                                                     (5 + 10) / 88]/Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
-[2025-05-05 23:24:31]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
-[2025-05-05 23:24:58] subPath sub-016
-[2025-05-05 23:24:58] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
-[2025-05-05 23:24:58] Derivatives: True
-[2025-05-05 23:24:58] Derivatives from config: True
-[2025-05-05 23:24:58] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-016/eeg/sub-016_task-eyesclosed_eeg.set
-[2025-05-05 23:25:03] [Stage 0:===>                                                     (6 + 10) / 88]/Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
-[2025-05-05 23:25:03]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
+[2025-05-06 10:32:32] Picked up _JAVA_OPTIONS: -Xmx12g -Xms4g
+[2025-05-06 10:32:33] Picked up _JAVA_OPTIONS: -Xmx12g -Xms4g
+[2025-05-06 10:32:34] 25/05/06 10:32:34 WARN SparkConf: The configuration key 'spark.shuffle.service.index.cache.entries' has been deprecated as of Spark 2.3.0 and may be removed in the future. Not used anymore. Please use spark.shuffle.service.index.cache.size
+[2025-05-06 10:32:34] 25/05/06 10:32:34 WARN SparkConf: The configuration key 'spark.shuffle.service.index.cache.entries' has been deprecated as of Spark 2.3.0 and may be removed in the future. Not used anymore. Please use spark.shuffle.service.index.cache.size
+[2025-05-06 10:32:34] Setting default log level to "WARN".
+[2025-05-06 10:32:34] To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
+[2025-05-06 10:32:34] 25/05/06 10:32:34 WARN SparkConf: The configuration key 'spark.shuffle.service.index.cache.entries' has been deprecated as of Spark 2.3.0 and may be removed in the future. Not used anymore. Please use spark.shuffle.service.index.cache.size
+[2025-05-06 10:32:34] 25/05/06 10:32:34 WARN SparkConf: The configuration key 'spark.shuffle.service.index.cache.entries' has been deprecated as of Spark 2.3.0 and may be removed in the future. Not used anymore. Please use spark.shuffle.service.index.cache.size
+[2025-05-06 10:32:34] 25/05/06 10:32:34 WARN SparkConf: The configuration key 'spark.shuffle.service.index.cache.entries' has been deprecated as of Spark 2.3.0 and may be removed in the future. Not used anymore. Please use spark.shuffle.service.index.cache.size
+[2025-05-06 10:32:34] 25/05/06 10:32:34 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+[2025-05-06 10:32:34] 25/05/06 10:32:34 WARN SparkConf: Note that spark.local.dir will be overridden by the value set by the cluster manager (via SPARK_LOCAL_DIRS in mesos/standalone/kubernetes and LOCAL_DIRS in YARN).
+[2025-05-06 10:32:39] 25/05/06 10:32:39 WARN SparkContext: The path ./src/preprocess_sets.py has been added already. Overwriting of added paths is not supported in the current version.
+[2025-05-06 10:32:41] [Stage 0:>                                                        (0 + 10) / 88]Config not found in feature_extraction.py
+[2025-05-06 10:32:41] Config not found in feature_extraction.py
+[2025-05-06 10:32:41] Config not found in feature_extraction.py
+[2025-05-06 10:32:41] Config not found in feature_extraction.pyConfig not found in feature_extraction.py
+[2025-05-06 10:32:41] 
+[2025-05-06 10:32:41] Config not found in feature_extraction.py
+[2025-05-06 10:32:41] Config not found in feature_extraction.py
+[2025-05-06 10:32:41] Config not found in feature_extraction.py
+[2025-05-06 10:32:41] Config not found in feature_extraction.py
+[2025-05-06 10:32:41] Config not found in feature_extraction.py
+[2025-05-06 10:32:41] subPath sub-003
+[2025-05-06 10:32:41] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
+[2025-05-06 10:32:41] Derivatives: True
+[2025-05-06 10:32:41] Derivatives from config: True
+[2025-05-06 10:32:41] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-003/eeg/sub-003_task-eyesclosed_eeg.set
+[2025-05-06 10:32:41] subPath sub-006
+[2025-05-06 10:32:41] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
+[2025-05-06 10:32:41] Derivatives: True
+[2025-05-06 10:32:41] Derivatives from config: True
+[2025-05-06 10:32:41] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-006/eeg/sub-006_task-eyesclosed_eeg.set
+[2025-05-06 10:32:41] subPath sub-004
+[2025-05-06 10:32:41] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
+[2025-05-06 10:32:41] Derivatives: True
+[2025-05-06 10:32:41] Derivatives from config: True
+[2025-05-06 10:32:41] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-004/eeg/sub-004_task-eyesclosed_eeg.set
+[2025-05-06 10:32:41] subPath sub-005
+[2025-05-06 10:32:41] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
+[2025-05-06 10:32:41] Derivatives: True
+[2025-05-06 10:32:41] Derivatives from config: True
+[2025-05-06 10:32:41] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-005/eeg/sub-005_task-eyesclosed_eeg.set
+[2025-05-06 10:32:41] subPath sub-010
+[2025-05-06 10:32:41] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
+[2025-05-06 10:32:41] Derivatives: True
+[2025-05-06 10:32:41] Derivatives from config: True
+[2025-05-06 10:32:41] subPath sub-007
+[2025-05-06 10:32:41] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
+[2025-05-06 10:32:41] Derivatives: True
+[2025-05-06 10:32:41] Derivatives from config: True
+[2025-05-06 10:32:41] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-007/eeg/sub-007_task-eyesclosed_eeg.set
+[2025-05-06 10:32:41] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-010/eeg/sub-010_task-eyesclosed_eeg.set
+[2025-05-06 10:32:41] subPath sub-001
+[2025-05-06 10:32:41] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
+[2025-05-06 10:32:41] Derivatives: True
+[2025-05-06 10:32:41] Derivatives from config: True
+[2025-05-06 10:32:41] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-001/eeg/sub-001_task-eyesclosed_eeg.set
+[2025-05-06 10:32:41] subPath sub-002
+[2025-05-06 10:32:41] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
+[2025-05-06 10:32:41] Derivatives: True
+[2025-05-06 10:32:41] Derivatives from config: True
+[2025-05-06 10:32:41] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-002/eeg/sub-002_task-eyesclosed_eeg.set
+[2025-05-06 10:32:41] subPath sub-008
+[2025-05-06 10:32:41] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
+[2025-05-06 10:32:41] Derivatives: True
+[2025-05-06 10:32:41] Derivatives from config: True
+[2025-05-06 10:32:41] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-008/eeg/sub-008_task-eyesclosed_eeg.set
+[2025-05-06 10:32:41] subPath sub-009
+[2025-05-06 10:32:41] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
+[2025-05-06 10:32:41] Derivatives: True
+[2025-05-06 10:32:41] Derivatives from config: True
+[2025-05-06 10:32:41] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-009/eeg/sub-009_task-eyesclosed_eeg.set
+[2025-05-06 10:32:42] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
+[2025-05-06 10:32:42]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
+[2025-05-06 10:32:42] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
+[2025-05-06 10:32:42]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
+[2025-05-06 10:32:42] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
+[2025-05-06 10:32:42]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
+[2025-05-06 10:32:42] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
+[2025-05-06 10:32:42]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
+[2025-05-06 10:32:42] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
+[2025-05-06 10:32:42]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
+[2025-05-06 10:32:42] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
+[2025-05-06 10:32:42]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
+[2025-05-06 10:32:42] /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
+[2025-05-06 10:32:42]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
+[2025-05-06 10:33:32] subPath sub-011
+[2025-05-06 10:33:32] subPath data_path /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark
+[2025-05-06 10:33:32] Derivatives: True
+[2025-05-06 10:33:32] Derivatives from config: True
+[2025-05-06 10:33:32] Path handed: /Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/ds004504/derivatives/sub-011/eeg/sub-011_task-eyesclosed_eeg.set
+[2025-05-06 10:33:33] [Stage 0:>                                                        (1 + 10) / 88]/Volumes/CrucialX6/Home/projects/EEG-HPC-benchmark/src/preprocess_sets.py:245: RuntimeWarning: The data contains 'boundary' events, indicating data discontinuities. Be cautious of filtering and epoching around these events.
+[2025-05-06 10:33:33]   raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
