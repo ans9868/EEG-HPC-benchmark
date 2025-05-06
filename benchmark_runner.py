@@ -252,8 +252,7 @@ def main():
     
     end = time.time()
 
-    print("[SPARK] Saving data partitioned by SubjectID...")
-    subs.write.partitionBy("SubjectID").parquet("output_path/features_by_subject")
+    print("[SPARK] Finished processing subjects and saving the data")
 
     cols = len(subs.columns)
     print(f"✅ Shape of extracted features for subject(s): ({rows}, {cols})")
