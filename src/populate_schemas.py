@@ -307,7 +307,7 @@ def process_subjects_parallel(spark: SparkSession, epochs_df, metadata_df, outpu
                 
                 # Save to parquet
                 subject_output_path = f"{output_path}/SubjectID={subject_id}"
-                os.makedirs(os.path.dirname(subject_output_path), exist_ok=True)
+                os.makedirs(subject_output_path, exist_ok=True)
                 result_df.to_parquet(f"{subject_output_path}/features.parquet", index=False)
                 
                 # Record success
@@ -366,8 +366,23 @@ def process_subjects_parallel(spark: SparkSession, epochs_df, metadata_df, outpu
     all_results = results_rdd.flatMap(lambda x: x).collect()
     
     # Report results
-    successful = [r for r in all_results if r["status"] == "success"]
-    failed = [r for r in all_results if r["status"] == "failed"]
+    successful = []
+    failed = []
+
+    for r in all_results:
+        if isinstance(r, dict) and "status" in r:
+            if r["status"] == "success":
+                successful.append(r)
+            elif r["status"] == "failed":
+                failed.append(r)
+        else:
+            print(f"Warning: Unexpected result format: {type(r).__name__} - {r}")
+            # Treat as failure if not a proper result dict
+            failed.append({
+                "subject_id": "unknown",
+                "status": "failed",
+                "error": f"Invalid result format: {r}"
+            })
     
     print(f"\nProcessing complete: {len(successful)} successful, {len(failed)} failed")
     
