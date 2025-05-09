@@ -23,7 +23,7 @@ sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "./src/")))
 
 ROOT_DIR = "."
 SRC_DIR = ROOT_DIR + "/src"
-sys.path.append("/Users/admin/projectst/EEG-Feature-Benchmark")
+sys.path.append("/home/ans9868/EEG-HPC-benchmark")
 
 from config_handler import initiate_config, load_config
 
@@ -41,37 +41,9 @@ def main():
 
     os.environ["_JAVA_OPTIONS"] = "-Xmx12g -Xms4g"
 
-# Build Spark session with memory, parallelism, and network settings
-    # spark = (
-    #     SparkSession.builder
-    #     .appName("EEG_Analysis")
-    # 
-    #     # Use 8 threads for better CPU balance on an M4 (assume 8–10 efficiency/performance cores)
-    #     .config("spark.master", "local[8]")
-    # 
-    #     # Optimize memory use (you can likely push this higher depending on RAM)
-    #     .config("spark.executor.memory", "18g")
-    #     .config("spark.driver.memory", "18g")
-    # 
-    #     # Reduce shuffle overhead in local mode
-    #     .config("spark.sql.shuffle.partitions", "100")
-    #     .config("spark.sql.adaptive.enabled", "true")
-    #     # Match parallelism to CPU threads
-    #     .config("spark.default.parallelism", "8")
-    #     .config("spark.sql.adaptive.shuffle.targetPostShuffleInputSize", "5120000")  # 5MB
-    #     # Larger RPC size helps with big EEG rows
-    #     .config("spark.rpc.message.maxSize", "256")
-    #     .config("spark.sql.execution.arrow.pyspark.enabled", "true")
-    #     .config("spark.sql.execution.arrow.maxRecordsPerBatch", "500")
-    #     # Ensure no duplicate/conflicting config keys (you had spark.master twice!)
-    #     .config("spark.driver.bindAddress", "127.0.0.1")
-    #     .config("spark.driver.host", "127.0.0.1")
-    #     
-    #     .getOrCreate()
-    # )
    
 # Path to your external SSD
-    external_ssd_path = "/Volumes/CrucialX6/spark_temp"
+    external_ssd_path = "/scratch/ans9868/spark_temp"
     
     # Calculate available system memory
     system_memory_gb = psutil.virtual_memory().total / (1024 ** 3)
@@ -89,36 +61,44 @@ def main():
     print(f"Setting executor memory: {executor_memory_gb}g")
     
     # Create SparkSession with optimized memory configuration
-    spark = (SparkSession.builder
+    spark = (
+        SparkSession.builder
         .appName("EEG-Analysis")
-        .config("spark.driver.memory", f"{driver_memory_gb}g")
-        .config("spark.executor.memory", f"{executor_memory_gb}g")
-        .config("spark.memory.fraction", "0.7")  # Fraction of heap used for execution and storage
-        .config("spark.memory.storageFraction", "0.5")  # Fraction used for storage (caching)
-        .config("spark.shuffle.spill.numElementsForceSpillThreshold", "5000")
-        # Add this to force more aggressive spillage
-        .config("spark.sql.shuffle.partitions", "200")  # Higher than default
-        .config("spark.driver.maxResultSize", f"{int(driver_memory_gb * 0.5)}g")  # Limit result collection size
-        
-        # Storage locations on external SSD
-        .config("spark.local.dir", external_ssd_path)
-        .config("spark.worker.dir", external_ssd_path)
-        .config("spark.shuffle.service.index.cache.entries", "4096")
-        .config("spark.sql.warehouse.dir", f"{external_ssd_path}/warehouse")
-        
-        # Temporary file locations and GC settings
-        .config("spark.driver.extraJavaOptions", 
-                f"-Djava.io.tmpdir={external_ssd_path}/tmp -XX:+UseG1GC") # -XX:+PrintGCDetails") this is to print the memorry details 
-        .config("spark.executor.extraJavaOptions", 
-                f"-Djava.io.tmpdir={external_ssd_path}/tmp -XX:+UseG1GC")
-                
-        # Optimize disk spill performance
+    
+        # Master should be set if you're not using spark-submit with --master
+        #.master("spark://cm045:7077")  # or leave out if using spark-submit
+     
+        # Memory and cores per executor
+        .config("spark.executor.instances", "8")             # Total executors (across both nodes)
+        .config("spark.executor.cores", "4")                 # Cores per executor
+        .config("spark.executor.memory", "8g")               # Memory per executor
+        .config("spark.driver.memory", "8g")                 # Driver memory
+    
+        # Memory tuning
+        .config("spark.memory.fraction", "0.7")
+        .config("spark.memory.storageFraction", "0.5")
+        .config("spark.driver.maxResultSize", "4g")          # Result limit to prevent OOM
+    
+        # Shuffle & parallelism tuning
+        .config("spark.sql.shuffle.partitions", "64")        # = total cores (2 nodes × 16)
+        .config("spark.default.parallelism", "64")
         .config("spark.shuffle.file.buffer", "1m")
         .config("spark.shuffle.spill.compress", "true")
         .config("spark.shuffle.compress", "true")
-        
+        .config("spark.shuffle.spill.numElementsForceSpillThreshold", "5000")
+    
+        # External SSD paths
+        .config("spark.local.dir", "/mnt/data/spark-local")  # Temp local storage
+        .config("spark.worker.dir", "/mnt/data/spark-worker")
+        .config("spark.sql.warehouse.dir", "/mnt/data/warehouse")
+    
+        # Temp and GC tuning
+        .config("spark.driver.extraJavaOptions", "-Djava.io.tmpdir=/mnt/data/tmp -XX:+UseG1GC")
+        .config("spark.executor.extraJavaOptions", "-Djava.io.tmpdir=/mnt/data/tmp -XX:+UseG1GC")
+    
         .getOrCreate()
     )
+
     
     # Create necessary directories if they don't exist
     os.makedirs(f"{external_ssd_path}/tmp", exist_ok=True)
