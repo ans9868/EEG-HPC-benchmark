@@ -14,11 +14,11 @@ except ImportError:
     from config_handler import initiate_config, load_config
 
 
-# try:
-#     config = load_config()
-# except RuntimeError:
-#     print("Config not found in feature_extraction.py")
-#     config = initiate_config()
+try:
+    config = load_config()
+except RuntimeError:
+    print("Config not found in feature_extraction.py")
+    config = initiate_config()
 
 
 config = load_config()
