@@ -167,7 +167,8 @@ def main():
         print(f"ERROR importing from eeg_hpc_benchmark: {e}")
         raise
 
-    subject_ids = ['sub-001']
+    # subject_ids = ['sub-001']
+    subject_ids = [f'sub-{i:03d}' for i in range(1, 89)]
     print("loading subjects")
     abs_start = time.time()
     df_epochs, df_metadata = load_subjects_spark(spark, subject_ids, config=config, output_base_dir=external_ssd_path)
@@ -187,7 +188,7 @@ def main():
     start = time.time()
 
     print("[SPARK] Applying process_subjects_parallel...")
-    subs = process_subjects_parallel(spark=spark, epochs_df=df_epochs, metadata_df=df_metadata, output_base_dir=external_ssd_path)
+    subs = process_subjects_parallel(spark=spark, config=config, epochs_df=df_epochs, metadata_df=df_metadata, output_base_dir=external_ssd_path)
 
     subs = subs.repartition("SubjectID")
     rows = subs.count()

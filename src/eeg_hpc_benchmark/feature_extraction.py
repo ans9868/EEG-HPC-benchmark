@@ -6,6 +6,11 @@ import os
 import time
 from joblib import Parallel, delayed 
 from pyspark.sql import Row
+
+from mne.filter import filter_data
+from mne.time_frequency import psd_array_welch
+
+
 from mne_features.univariate import (
     compute_app_entropy,
     compute_samp_entropy,
@@ -19,8 +24,6 @@ from mne_features.univariate import (
     compute_std,
     compute_mean
 )
-
-
 from eeg_hpc_benchmark.config_handler import load_config, initiate_config
 from eeg_hpc_benchmark.preprocess_sets import processSub, participantsInfoPath
 from eeg_hpc_benchmark.feature_extraction_helper import (
@@ -38,30 +41,12 @@ from eeg_hpc_benchmark.feature_extraction_helper import (
     total_band_power,
 )
 
-try:
-    config = load_config()
-except RuntimeError:
-    print("Config not found in feature_extraction.py")
-    config = initiate_config()
-        
 
 
-config = load_config()
-freqBands = config['freqBands']
-windowLength = config['windowLength']
-stepSize = config['stepSize']
-method = config['method']
-print(f"Config using in feature Extraction.py {config}")
+# method = 'welch'
+# windowLength = 3
+# stepSize = 1.5
 
-
-
-
-method = 'welch'
-windowLength = 3
-stepSize = 1.5
-from mne.filter import filter_data
-from mne.time_frequency import psd_array_welch
-from pyspark.sql import Row
 
 
 def debug_epoch_psd(epoch_id, raw_data, sfreq):
@@ -117,7 +102,7 @@ def debug_epoch_psd(epoch_id, raw_data, sfreq):
 
 
 
-def processEpoch(subjectID, epochID, rawData, channelNames, sfreq, freqBands=freqBands, method=method, windowLength=windowLength, stepSize=stepSize, n_jobs=1):
+def processEpoch(subjectID, epochID, rawData, channelNames, sfreq, freqBands, method, windowLength, stepSize, n_jobs=1):
     fmin = min(band_range[0] for band_range in freqBands.values())
     fmax = max(band_range[1] for band_range in freqBands.values())
 
@@ -150,13 +135,7 @@ def processEpoch(subjectID, epochID, rawData, channelNames, sfreq, freqBands=fre
     for channel_idx, channel_name in enumerate(channelNames):
         # Electrode-level features (non-band-specific)
         electrode_features = [
-            # ("TotalPower", totalBandPower(normalPsds, freqs, channel_idx)),
-            # ("TotalEnergy", totalEnergy(normalPsds, freqs, channel_idx)),
-            # ("SpectralEntropy", spectral_entropy_from_psd(normalPsds[channel_idx, :])),
-            # ("HjorthActivity", np.var(data[channel_idx, :])),
-            # ("HjorthIndex", compute_hjorth_index(data[channel_idx:channel_idx+1])[0])
-            # ("Skewness", scipy.stats.skew(data[channel_idx])),
-            # ("Kurtosis", scipy.stats.kurtosis(data[channel_idx])),
+    
             
             ("Mean", np.mean(rawData[channel_idx])),
             ("Std", np.std(rawData[channel_idx])),
@@ -212,26 +191,6 @@ def processEpoch(subjectID, epochID, rawData, channelNames, sfreq, freqBands=fre
                 ))    
 
 
-    # Epoch-level features: averaged across all channels
-    # epoch_feature_list = [
-    #     ("Mean", np.mean(compute_mean(data))),
-    #     ("Std", np.mean(compute_std(data))),
-    #     ("Variance", np.mean(compute_variance(data))),
-    #     ("RMS", np.mean(compute_rms(data))),
-    #     ("HjorthMobility", np.mean(compute_hjorth_mobility(data))),
-    # ]
-    # 
-    # for fname, val in epoch_feature_list:
-    #     rows.append(Row(
-    #         SubjectID=subjectID,
-    #         EpochID=epochID,
-    #         Electrode=None,
-    #         WaveBand=None,
-    #         FeatureName=fname,
-    #         FeatureValue=float(val),
-    #         table_type="epoch"
-    #     ))
-    
     return rows
 
 
@@ -239,7 +198,7 @@ def processEpoch(subjectID, epochID, rawData, channelNames, sfreq, freqBands=fre
 '''
 Process's a specific subject
 '''
-def processSubject(subject, n_jobs=-1, freqBands=freqBands):
+def processSubject(subject, freqBands):
     start = time.time()    
 
 
@@ -259,8 +218,3 @@ def processSubjects(subjectList, n_jobs=-1):
 
     for subject in subjectList:
         result = processSubject(subject, n_jobs=n_jobs)
-        allResults[subject] = result
-
-    return allResults
-
-#processEpoch
