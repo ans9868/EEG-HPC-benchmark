@@ -29,15 +29,13 @@ SRC_DIR = ROOT_DIR + "/src"
 sys.path.append("/home/ans9868/EEG-HPC-benchmark/src")
 
 
-from config_handler import initiate_config, load_config
+from config_handler import initiate_config, load_config, load_config_file_only
 
 
 def main():
     print("start")
     start = time.time()
     # change the spar ksettings ! 
-
-
 
     # Cluster configuration for PySpark - 2 nodes (16 cores, 64GB RAM total)
     import psutil
@@ -46,6 +44,17 @@ def main():
     # Define storage paths (modify as needed for your cluster)
     external_ssd_path = "/scratch/ans9868/spark_temp"
     os.makedirs(external_ssd_path, exist_ok=True)
+
+        # load / create config file 
+    try:
+        config = load_config()
+    except RuntimeError:
+        config = initiate_config()
+
+    config = load_config_file_only("config.yaml")  # or use full path if needed
+    broadcast_config = spark.sparkContext.broadcast(config) #to make the config available to the pyspark workers and not make a copy
+    config = broadcast_config.value
+    
     
     # Calculate cluster resources
     total_cores = 16
@@ -124,11 +133,6 @@ def main():
         .config("spark.shuffle.spill.compress", "true")
         .config("spark.broadcast.compress", "true")
         
-        # Dynamic allocation (optional, remove if you want fixed allocation)
-        #.config("spark.dynamicAllocation.enabled", "true")
-        #.config("spark.dynamicAllocation.minExecutors", str(num_executors // 2))
-        #.config("spark.dynamicAllocation.maxExecutors", str(num_executors + 4))
-        
         .getOrCreate()
 )
 
@@ -152,15 +156,9 @@ def main():
     print(f"Memory usage before: {psutil.virtual_memory().percent}%")
 
 
-    # load / create config file 
-    print("initiate config")
-    initiate_config()
-    print("load config")
-    config = load_config()
-    print("config loaded: ", config)
 
-    broadcast_config = spark.sparkContext.broadcast(config) #to make the config available to the pyspark workers 
-    
+
+
     # Making all the modules files available to spark
     from populate_schemas import load_subjects_df, process_subjects_parallel, extract_features_udtf
     # from populate_schemas import extract_features_udtf
@@ -196,7 +194,7 @@ def main():
     
 
     # Load subject group info (e.g., labels for A/C/F)
-    subject_df = load_subjects_df(spark)
+    # subject_df = load_subjects_df(spark, config=config)
 
     # Load data for target subjects
     # subject_ids = ['sub-001', 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
@@ -204,7 +202,7 @@ def main():
     # subject_ids = ['sub-003'] #, 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
     print("loading subjects")
     abs_start = time.time()
-    df_epochs, df_metadata = load_subjects_spark(spark, subject_ids, output_base_dir=external_ssd_path)
+    df_epochs, df_metadata = load_subjects_spark(spark, subject_ids, output_base_dir=external_ssd_path, config=config)    
     
     print("got epochs and metadata")
     
@@ -244,7 +242,7 @@ def main():
 
     # subs = (
     #     df.groupBy("SubjectID").applyInPandas(
-    #         extract_features_udtf,
+    #         lambda pdf: extract_features_udtf(pdf, config=config),
     #         schema="""
     #             SubjectID string,
     #             EpochID string,
@@ -263,7 +261,7 @@ def main():
     end = time.time()
 
     print("[SPARK] Saving data partitioned by SubjectID...")
-    subs.write.partitionBy("SubjectID").parquet("{external_ssd_path}/features_by_subject")
+   
 
     cols = len(subs.columns)
     print(f"✅ Shape of extracted features for subject(s): ({rows}, {cols})")
@@ -280,7 +278,7 @@ def main():
     print("=== FINISHED ===")
     print("elapsed time of the udtf: ", )
    
-    spark.stop()
+    # spark.stop()
 
 if __name__ == "__main__":
     main()

@@ -1,74 +1,87 @@
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt 
-import mne
 import os
 import time
-from joblib import Parallel, delayed 
+import glob
+import inspect
 
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import mne
+
+from joblib import Parallel, delayed
+
+from pyspark.sql import Row, SparkSession, DataFrame
+from pyspark import StorageLevel
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, ArrayType
+
+# Config loader
 try:
-    # When run as part of a package (local scripts, Jupyter, etc.)
-    from src.config_handler import initiate_config, load_config
+    from src.config_handler import load_config_file_only
 except ImportError:
-    # When run inside Spark workers (which get flat files via sc.addPyFile)
-    from config_handler import initiate_config, load_config
+    from config_handler import load_config_file_only
 
 
-try:
-    config = load_config()
-except RuntimeError:
-    print("Config not found in feature_extraction.py")
-    config = initiate_config()
 
+def ensure_config_passed(config):
+    if config is None:
+        caller = inspect.stack()[1].function
+        raise ValueError(f"[ERROR] Missing `config` in function '{caller}' — make sure to pass it explicitly.")
 
-config = load_config()
-data_path = config['data_path']
-derivatives = config['derivatives']
-freqBands = config['freqBands']
-windowLength = config['windowLength']
-stepSize = config['stepSize']
-method = config['stepSize']
+def subPath(sub, config):
+    ensure_config_passed(config)
+    data_path = config['data_path']
+    derivatives = config['derivatives']
 
-
-def get_data_path():
-    return data_path
-
-def subPath(sub, derivatives=derivatives):
-    print("subPath", sub)
-    print("subPath data_path", data_path)
-    
     sub_id = sub.replace('sub-', '') if isinstance(sub, str) and sub.startswith('sub-') else sub
-    print(f"Derivatives: {derivatives}") 
-    print(f"Derivatives from config: {config['derivatives']}") 
 
     if derivatives:
-       path = os.path.join(data_path, 'ds004504', 'derivatives', f'sub-{sub_id}', 'eeg', f'sub-{sub_id}_task-eyesclosed_eeg.set')
+        path = os.path.join(data_path, 'ds004504', 'derivatives', f'sub-{sub_id}', 'eeg', f'sub-{sub_id}_task-eyesclosed_eeg.set')
     else:
-       path = os.path.join(data_path, 'ds004504', f'sub-{sub_id}', 'eeg', f'sub-{sub_id}_task-eyesclosed_eeg.set')
-    
+        path = os.path.join(data_path, 'ds004504', f'sub-{sub_id}', 'eeg', f'sub-{sub_id}_task-eyesclosed_eeg.set')
+
     if not os.path.exists(path):
         raise FileNotFoundError(f'The path was not found for {sub}, path: {path}')
-    print(f"Path handed: {path}")
     return path
 
-def participantsInfoPath():
-    return os.path.join(data_path, 'ds004504', 'participants.tsv')
+def participantsInfoPath(config):
+    ensure_config_passed(config)
+    return os.path.join(config['data_path'], 'ds004504', 'participants.tsv')
 
-'''
-ProcessSub gets the power density from a subject. It has 3 modes. Generator, sequential or parallel.
-Ironically the parallel mode seems to be the slowest by about 15% and the other two are about tied.
-'''
-def _psd_generator(epochs, compute_psd):
-    for i in range(len(epochs)):
-        yield compute_psd(epochs[i])
+def processSub(sub, config):
+    ensure_config_passed(config)
+    windowLength = config['windowLength']
+    stepSize = config['stepSize']
 
-def processSubPSDs(sub, derivatives=derivatives, method=method, windowLength=windowLength, stepSize=stepSize, mode='generator', n_jobs=1):
-    raw = mne.io.read_raw_eeglab(subPath(sub, derivatives), preload=True)
+    raw = mne.io.read_raw_eeglab(subPath(sub, config), preload=True)
+
+    for i, desc in enumerate(raw.annotations.description):
+        if 'boundary' in desc:
+            raw.annotations.description[i] = 'BAD_boundary'
+
+    sfreq = raw.info['sfreq']
+    start_times = np.arange(0, raw.times[-1] - windowLength, stepSize)
+    events = np.array([[int(t * sfreq), 0, 1] for t in start_times])
+
+    epochs = mne.Epochs(
+        raw, events, event_id=1, tmin=0, tmax=windowLength,
+        baseline=None, detrend=1, preload=True, verbose=False,
+        reject_by_annotation=True
+    )
+    return epochs
+
+def processSubPSDs(sub, config, mode='generator', n_jobs=1):
+    ensure_config_passed(config)
+    method = config['stepSize']
+    windowLength = config['windowLength']
+    stepSize = config['stepSize']
+    freqBands = config['freqBands']
+
+    raw = mne.io.read_raw_eeglab(subPath(sub, config), preload=True)
     sfreq = raw.info['sfreq']
 
     start_times = np.arange(0, raw.times[-1] - windowLength, stepSize)
     events = np.array([[int(t * sfreq), 0, 1] for t in start_times])
-    
+
     epochs = mne.Epochs(
         raw, events, event_id=1, tmin=0, tmax=windowLength,
         baseline=None, detrend=1, preload=True, verbose=False
@@ -81,149 +94,43 @@ def processSubPSDs(sub, derivatives=derivatives, method=method, windowLength=win
         return epoch.compute_psd(fmin=freqLow, fmax=freqHigh, method=method, verbose=False)
 
     if mode == 'generator':
-        return _psd_generator(epochs, compute_psd)
-
+        return (compute_psd(epochs[i]) for i in range(len(epochs)))
     elif mode == 'sequential':
         return [compute_psd(epochs[i]) for i in range(len(epochs))]
-
     elif mode == 'parallel':
         return Parallel(n_jobs=n_jobs)(
             delayed(compute_psd)(epochs[i]) for i in range(len(epochs))
         )
-
     else:
         raise ValueError(f"Invalid mode '{mode}'. Choose from 'generator', 'sequential', or 'parallel'.")
 
+def load_epochs(config, subjects=None):
+    ensure_config_passed(config)
+    data_path = config['data_path']
+    windowLength = config['windowLength']
+    stepSize = config['stepSize']
 
-'''
-This is for processing the subject without getting the psd's. It gets all the epochs for the subject.
-'''
-def processSub(sub, derivatives=derivatives, windowLength=windowLength, stepSize=stepSize):
-    print("processSub", sub)
-    print("processSub: derivatives", derivatives)
-    print("processSub: windowLength", windowLength)
-    print("processSub: windowLength", stepSize)
-    raw = mne.io.read_raw_eeglab(subPath(sub, derivatives), preload=True)
-    
-    # removing the boundary events by adding BAD_boundary here and 'reject by anotaion' in mne.Epochs( .... )
-    for i, desc in enumerate(raw.annotations.description):
-        if 'boundary' in desc:
-            raw.annotations.description[i] = 'BAD_boundary'
-
-    sfreq = raw.info['sfreq']
-
-
-    start_times = np.arange(0, raw.times[-1] - windowLength, stepSize)
-    events = np.array([[int(t * sfreq), 0, 1] for t in start_times]) # [sample_index, previous_event_1d, current_event_id], note, 0 -> means we don't have transitions between events,
-    
-    epochs = mne.Epochs(
-        raw, events, event_id=1, tmin=0, tmax=windowLength,
-        baseline=None, detrend=1, preload=True, verbose=False,
-        reject_by_annotation=True
-    )
-    
-    return epochs
-
-
-
-def load_epochs(subjects=None, derivatives=derivatives, windowLength=windowLength, stepSize=stepSize):
-    """
-    Load and combine epochs from multiple subjects into the format expected by mne-features
-    
-    Parameters
-    ----------
-    subjects : list of str or None
-        List of subject IDs to process. If None, process all available subjects.
-    derivatives : bool, default=True
-        Whether to use the derivatives data path.
-    windowLength : float
-        Length of each epoch window in seconds.
-    stepSize : float
-        Step size between consecutive epochs in seconds.
-    
-    Returns
-    -------
-    X : ndarray, shape (n_epochs, n_channels, n_times)
-        Combined epochs data from all subjects.
-    """
-    # If no subjects specified, could get them from a directory listing
     if subjects is None:
-        # Example: get all subject directories
         import glob
-        subjects = [os.path.basename(p) for p in 
-                   glob.glob(os.path.join(data_path, 'ds004504', 'sub-*'))]
+        subjects = [os.path.basename(p) for p in glob.glob(os.path.join(data_path, 'ds004504', 'sub-*'))]
         subjects = [s.replace('sub-', '') for s in subjects]
-    
-    # List to hold all epochs
+
     all_epochs_data = []
-    
-    print("load_epochs, first subject path: ", subjects[0])
-    # Process each subject
+
     for sub in subjects:
-        print(f"Processing subject {sub}")
         try:
-            # Get epochs for this subject
-            epochs = processSub(sub, derivatives, windowLength, stepSize)
-            
-            # Convert epochs to numpy array - shape (n_epochs, n_channels, n_times)
+            epochs = processSub(sub, config)
             epochs_data = epochs.get_data()
-            
-            # Append to our collection
             all_epochs_data.append(epochs_data)
-            
         except Exception as e:
             print(f"Error processing subject {sub}: {e}")
             continue
-    
-    # Combine all subjects' epochs into one array
+
     if not all_epochs_data:
         raise ValueError("No valid epochs data found for any subjects")
-    
-    # Concatenate along the first dimension (epochs)
+
     X = np.concatenate(all_epochs_data, axis=0)
-    
-    print(f"Loaded {X.shape[0]} epochs from {len(subjects)} subjects")
-    print(f"Data shape: {X.shape}")
-    
     return X
-
-
-from pyspark.sql import Row
-from pyspark.sql import SparkSession
-from pyspark import StorageLevel
-
-
-
-
-
-
-
-from pyspark.sql import Row
-from pyspark.sql import SparkSession
-import numpy as np
-from preprocess_sets import processSub
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, ArrayType
-import os
-
-
-from pyspark import StorageLevel
-
-from pyspark.sql import Row
-from pyspark import StorageLevel
-import mne
-import numpy as np
-from src.preprocess_sets import subPath
-from pyspark.sql import DataFrame
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -232,12 +139,7 @@ def join_epochs_with_metadata(df_epochs: DataFrame, df_metadata: DataFrame) -> D
     joined_df = df_epochs.join(df_metadata, on="SubjectID", how="left")
     return joined_df
 
-from pyspark.sql import SparkSession, Row
-from pyspark import StorageLevel
-import mne
-import numpy as np
-from src.preprocess_sets import subPath
-import os
+
 
 def load_subjects_spark(spark: SparkSession, subject_ids: list, output_base_dir="/Volumes/CrucialX6/spark_data", force_recompute=False):
     def processSubSpark(sub_id):
@@ -388,8 +290,6 @@ def load_subjects_spark(spark: SparkSession, subject_ids: list, output_base_dir=
         spark.catalog.clearCache()  # Clear any cached data
     else:
         print("No subjects need processing, using existing parquet files")
-
-
 
     
     # Create references to the parquet files - these don't load data into memory yet

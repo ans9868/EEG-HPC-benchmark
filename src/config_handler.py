@@ -30,6 +30,13 @@ def initiate_config(config_path="config.yaml", interactive=False):
 
     return _CONFIG
 
+def load_config_file_only(path="config.yaml"):
+    import yaml
+    with open(path, "r") as f:
+        return yaml.safe_load(f)
+
+
+
 def _interactive_config(default_config=None):
     """
     Prompt user for config values. Requires non-empty data_path.
