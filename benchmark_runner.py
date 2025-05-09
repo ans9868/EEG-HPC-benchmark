@@ -21,9 +21,13 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "./src/")))
 
-# ROOT_DIR = "."
-# SRC_DIR = ROOT_DIR + "/src"
-# sys.path.append("/Users/admin/projectst/EEG-Feature-Benchmark")
+
+# how make this dynamic, this is needed for pyspark workers to find the src directory
+ROOT_DIR = "."
+SRC_DIR = ROOT_DIR + "/src"
+
+sys.path.append("/home/ans9868/EEG-HPC-benchmark/src")
+
 
 from config_handler import initiate_config, load_config
 
@@ -155,6 +159,8 @@ def main():
     config = load_config()
     print("config loaded: ", config)
 
+    broadcast_config = spark.sparkContext.broadcast(config) #to make the config available to the pyspark workers 
+    
     # Making all the modules files available to spark
     from populate_schemas import load_subjects_df, process_subjects_parallel, extract_features_udtf
     # from populate_schemas import extract_features_udtf
@@ -181,8 +187,10 @@ def main():
         print("Added populate_schemas.py to the pyspark context")
         sc.addPyFile(os.path.join(SRC_DIR, "preprocess_sets.py"))
         print("Added preprocess_sets.py to the pyspark context")
-
-
+        
+        sc.addPyFile("src.zip")
+        print("Added src.zip to the pyspark context")
+    
     except Exception as e:
         print(f"Error adding files to SparkContext: {e}")
     
@@ -196,7 +204,7 @@ def main():
     # subject_ids = ['sub-003'] #, 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
     print("loading subjects")
     abs_start = time.time()
-    df_epochs, df_metadata = load_subjects_spark(spark, subject_ids)
+    df_epochs, df_metadata = load_subjects_spark(spark, subject_ids, output_base_dir=external_ssd_path)
     
     print("got epochs and metadata")
     
@@ -231,8 +239,7 @@ def main():
     # Apply the UDTF: One subject group at a time
     #
     print("[SPARK] Applying extract_features_udtf...")
-    
-    subs = process_subjects_parallel(spark, df, output_base_dir=external_ssd_path)
+
  
 
     # subs = (
@@ -256,7 +263,7 @@ def main():
     end = time.time()
 
     print("[SPARK] Saving data partitioned by SubjectID...")
-    subs.write.partitionBy("SubjectID").parquet("output_path/features_by_subject")
+    subs.write.partitionBy("SubjectID").parquet("{external_ssd_path}/features_by_subject")
 
     cols = len(subs.columns)
     print(f"✅ Shape of extracted features for subject(s): ({rows}, {cols})")

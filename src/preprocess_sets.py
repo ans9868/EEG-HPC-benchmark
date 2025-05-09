@@ -14,11 +14,11 @@ except ImportError:
     from config_handler import initiate_config, load_config
 
 
-try:
-    config = load_config()
-except RuntimeError:
-    print("Config not found in feature_extraction.py")
-    config = initiate_config()
+# try:
+#     config = load_config()
+# except RuntimeError:
+#     print("Config not found in feature_extraction.py")
+#     config = initiate_config()
 
 
 config = load_config()
@@ -388,6 +388,9 @@ def load_subjects_spark(spark: SparkSession, subject_ids: list, output_base_dir=
         spark.catalog.clearCache()  # Clear any cached data
     else:
         print("No subjects need processing, using existing parquet files")
+
+
+
     
     # Create references to the parquet files - these don't load data into memory yet
     print("Creating references to parquet files...")
@@ -396,120 +399,3 @@ def load_subjects_spark(spark: SparkSession, subject_ids: list, output_base_dir=
     
     # Return the references to the parquet files
     return parquet_epochs, parquet_metadata
-
-
-
-'''
-def load_subjects_spark(spark: SparkSession, subject_ids: list, output_base_dir="/Volumes/CrucialX6/spark_data", force_recompute=False):
-    def processSubSpark(sub_id):
-        try:
-            raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
-
-            # Mark boundary annotations
-            for i, desc in enumerate(raw.annotations.description):
-                if 'boundary' in desc:
-                    raw.annotations.description[i] = 'BAD_boundary'
-
-            sfreq = raw.info['sfreq']
-            ch_names = raw.info['ch_names']
-            start_times = np.arange(0, raw.times[-1] - windowLength, stepSize)
-            events = np.array([[int(t * sfreq), 0, 1] for t in start_times])
-
-            epochs = mne.Epochs(
-                raw, events, event_id=1, tmin=0, tmax=windowLength,
-                baseline=None, detrend=1, preload=True, verbose=False,
-                reject_by_annotation=True
-            )
-            data = epochs.get_data()
-
-            epoch_rows = [
-                Row(
-                    SubjectID=sub_id,
-                    EpochID=f"ep-{ep_idx}",
-                    EEG=data[ep_idx].astype(float).tolist(),
-                )
-                for ep_idx in range(data.shape[0])
-            ]
-
-            metadata_row = Row(
-                SubjectID=sub_id,
-                ChannelNames=ch_names,
-                SFreq=float(sfreq),
-                NumEpochs=int(data.shape[0])
-            )
-
-            return (epoch_rows, metadata_row)
-
-        except Exception as e:
-            print(f"[ERROR] {sub_id}: {e}")
-            return ([], None)
-
-    
-    # The strategy here is to multithread getting the subjects information, then putting the subjects on disk (on external hard drive) and keeping a reference of these subjects in the dataframe
-    
-    print(sorted(subject_ids))
-    num_subjects = len(set(subject_ids))
-    print(f"Unique: {num_subjects}, Total: {len(subject_ids)}")
-    
-    # Calculate optimal number of partitions
-    # Rule of thumb: aim for partitions that are 100-200MB each
-    # Another approach: 2-3 partitions per core in your cluster
-    num_cores = spark.sparkContext.defaultParallelism
-    recommended_partitions = max(num_cores * 2, num_subjects)
-    
-    print(f"Using {recommended_partitions} partitions (based on {num_cores} cores and {num_subjects} subjects)")
-    
-    # ⚙️ RDD of subject IDs with improved partitioning
-    rdd = spark.sparkContext.parallelize(subject_ids, numSlices=recommended_partitions)
-
-    # Run per-subject processing
-    result_rdd = rdd.map(processSubSpark)
-
-    # Unpack into two RDDs and control partitioning
-    epoch_rows_rdd = result_rdd.flatMap(lambda x: x[0]).repartition(recommended_partitions)
-    metadata_rows_rdd = result_rdd.map(lambda x: x[1]).filter(lambda x: x is not None).repartition(min(recommended_partitions, num_subjects))
-
-    # Convert to DataFrames
-    df_epochs = spark.createDataFrame(epoch_rows_rdd)
-    df_metadata = spark.createDataFrame(metadata_rows_rdd)
-
-    # Count to materialize (forces evaluation)
-    epoch_count = df_epochs.count()
-    metadata_count = df_metadata.count()
-    print(f"Created {epoch_count} epoch rows and {metadata_count} metadata rows")
-
-    # Repartition by SubjectID for optimal parquet write performance
-    # This creates one file per subject per partition
-    df_epochs = df_epochs.repartition(recommended_partitions, "SubjectID")
-    df_metadata = df_metadata.repartition(min(recommended_partitions, num_subjects), "SubjectID")
-    
-    # output_base_dir = "/Volumes/CrucialX6/spark_data"
-
-    print("Writing epochs to parquet...")
-    df_epochs.write.mode("overwrite").partitionBy("SubjectID").option("maxRecordsPerFile", 1000000)  # Limit file size .parquet(f"{output_base_dir}/tmp_epochs/")
-    
-    print("Writing metadata to parquet...")
-    df_metadata.write.mode("overwrite").partitionBy("SubjectID").parquet(f"{output_base_dir}/tmp_metadata/")
-    
-    # Explicitly force garbage collection to free memory
-    import gc
-    # Remove references to the DataFrames
-    df_epochs = None
-    df_metadata = None
-    epoch_rows_rdd = None
-    metadata_rows_rdd = None
-    result_rdd = None
-    rdd = None
-    # Force garbage collection
-    gc.collect()
-    spark.catalog.clearCache()  # Clear any cached data
-    
-    # Create references to the parquet files - these don't load data into memory yet
-    print("Creating references to parquet files...")
-    parquet_epochs = spark.read.parquet(f"{output_base_dir}/tmp_epochs/")
-    parquet_metadata = spark.read.parquet(f"{output_base_dir}/tmp_metadata/")
-    
-    # Return the references to the parquet files
-    return parquet_epochs, parquet_metadata
-
-'''
