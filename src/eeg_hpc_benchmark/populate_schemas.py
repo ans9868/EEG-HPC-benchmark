@@ -16,22 +16,14 @@ from pyspark.storagelevel import StorageLevel
 import time
 import os
 
-try:
-    from src.feature_extraction import processEpoch, processSub
-    from src.schema_definition import get_feature_schema, get_subject_schema
-    from src.preprocess_sets import subPath, participantsInfoPath, processSubPSDs, processSub
-    from src.config_handler import load_config, initiate_config
-except ImportError:
-    from feature_extraction import processEpoch, processSub
-    from schema_definition import get_feature_schema, get_subject_schema
-    from preprocess_sets import subPath, participantsInfoPath, processSubPSDs, processSub
-    from config_handler import load_config, initiate_config
+from eeg_hpc_benchmark.feature_extraction import processEpoch
+from eeg_hpc_benchmark.schema_definition import get_feature_schema
+import numpy as np
+import pandas as pd
+from pyspark.sql import Row
 
+from eeg_hpc_benchmark.feature_extraction import processEpoch  # This function returns a list of Rows
 
-try:
-    config = load_config()
-except RuntimeError:
-    config = initiate_config()
 
 
 
@@ -51,11 +43,7 @@ def load_subjects_df(spark: SparkSession, participants_path: str="") -> DataFram
 
 
 
-import numpy as np
-import pandas as pd
-from pyspark.sql import Row
 
-from feature_extraction import processEpoch  # This function returns a list of Rows
 
 
 

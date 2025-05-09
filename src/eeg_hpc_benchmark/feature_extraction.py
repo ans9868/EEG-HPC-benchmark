@@ -19,22 +19,31 @@ from mne_features.univariate import (
     compute_std,
     compute_mean
 )
-try:
-    # When run as part of a package (local scripts, Jupyter, etc.)
-    from src.config_handler import load_config, initiate_config
-    from src.preprocess_sets import processSub, participantsInfoPath
-    from src.feature_extraction_helper import *
-except ImportError:
-    # When run inside Spark workers (which get flat files via sc.addPyFile)
-    from preprocess_sets import processSub, participantsInfoPath
-    from config_handler import load_config, initiate_config
-    from feature_extraction_helper import *
+
+
+from eeg_hpc_benchmark.config_handler import load_config, initiate_config
+from eeg_hpc_benchmark.preprocess_sets import processSub, participantsInfoPath
+from eeg_hpc_benchmark.feature_extraction_helper import (
+    bandPower,
+    totalBandPower,
+    totalEnergy,
+    compute_mean,
+    compute_std,
+    compute_variance,
+    compute_rms,
+    compute_hjorth_mobility,
+    compute_hjorth_complexity,
+    compute_hjorth_index,
+    spectral_entropy_from_psd,
+    total_band_power,
+)
 
 try:
     config = load_config()
 except RuntimeError:
     print("Config not found in feature_extraction.py")
     config = initiate_config()
+        
 
 
 config = load_config()

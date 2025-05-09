@@ -15,10 +15,7 @@ from pyspark import StorageLevel
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, ArrayType
 
 # Config loader
-try:
-    from src.config_handler import load_config_file_only
-except ImportError:
-    from config_handler import load_config_file_only
+from eeg_hpc_benchmark.config_handler import load_config_file_only
 
 
 
