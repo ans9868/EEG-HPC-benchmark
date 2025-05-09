@@ -3,6 +3,7 @@ import os
 import sys
 import zipfile
 import psutil
+import shutil
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.functions import pandas_udf, PandasUDFType
@@ -22,11 +23,21 @@ def main():
     print("start")
     start = time.time()
 
-    os.environ["PYSPARK_PYTHON"] = "/usr/bin/python3"
-    os.environ["PYSPARK_DRIVER_PYTHON"] = "/usr/bin/python3"
-
     external_ssd_path = "/scratch/ans9868/spark_temp"
+    # Clean up old temporary files (exclude tmp_epochs to preserve sub-001)
+    try:
+        shutil.rmtree(f"{external_ssd_path}/tmp", ignore_errors=True)
+        shutil.rmtree(f"{external_ssd_path}/warehouse", ignore_errors=True)
+        # Do not clean tmp_epochs to avoid reprocessing
+        print(f"Cleared {external_ssd_path}/tmp and {external_ssd_path}/warehouse")
+        os.system(f"df -h {external_ssd_path}")
+        os.system(f"du -sh {external_ssd_path}/*")
+    except Exception as e:
+        print(f"WARNING: Failed to clean {external_ssd_path}: {e}")
+
     os.makedirs(external_ssd_path, exist_ok=True)
+    os.makedirs(f"{external_ssd_path}/tmp", exist_ok=True)
+    os.makedirs(f"{external_ssd_path}/warehouse", exist_ok=True)
 
     total_cores = 16
     total_memory_gb = 64
@@ -72,6 +83,9 @@ def main():
         .config("spark.local.dir", external_ssd_path)
         .config("spark.worker.dir", external_ssd_path)
         .config("spark.sql.warehouse.dir", f"{external_ssd_path}/warehouse")
+        .config("spark.files.overwrite", "true")
+        .config("spark.executorEnv.TMPDIR", f"{external_ssd_path}/tmp")
+        .config("spark.driverEnv.TMPDIR", f"{external_ssd_path}/tmp")
         .config("spark.driver.extraJavaOptions",
                 f"-Djava.io.tmpdir={external_ssd_path}/tmp -XX:+UseG1GC -XX:G1HeapRegionSize=16m -XX:+PrintFlagsFinal -XX:+PrintReferenceGC -XX:+HeapDumpOnOutOfMemoryError")
         .config("spark.executor.extraJavaOptions",
@@ -84,9 +98,6 @@ def main():
     )
 
     spark.sparkContext.setLogLevel("WARN")
-    os.makedirs(f"{external_ssd_path}/tmp", exist_ok=True)
-    os.makedirs(f"{external_ssd_path}/warehouse", exist_ok=True)
-
     print(f"Driver memory configured: {spark.conf.get('spark.driver.memory')}")
     print(f"Storage directory: {spark.conf.get('spark.local.dir')}")
 
@@ -103,11 +114,15 @@ def main():
 
     ROOT_DIR = "/home/ans9868/EEG-HPC-benchmark"
     SRC_DIR = os.path.join(ROOT_DIR, "src")
+    module_dir = os.path.join(SRC_DIR, "eeg_hpc_benchmark")
+    zip_path = os.path.join(external_ssd_path, "eeg_hpc_benchmark.zip")
 
     # Create and distribute the module
     sc = spark.sparkContext
-    module_dir = os.path.join(SRC_DIR, "eeg_hpc_benchmark")
-    zip_path = os.path.join(external_ssd_path, "eeg_hpc_benchmark.zip")
+    # Always create a fresh zip file
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+        print(f"Deleted existing {zip_path} to create fresh zip")
 
     try:
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -119,30 +134,38 @@ def main():
                 "schema_definition.py",
                 "config_handler.py",
                 "populate_schemas.py",
-                # Add dimensionality_reduction.py if needed
-                # "dimensionality_reduction.py"
             ]:
                 file_path = os.path.join(module_dir, file_name)
                 if os.path.exists(file_path):
                     zipf.write(file_path, os.path.join("eeg_hpc_benchmark", file_name))
                     print(f"Added {file_name} to {zip_path}")
                 else:
-                    print(f"WARNING: File {file_path} does not exist")
+                    print(f"ERROR: File {file_path} does not exist")
+                    raise FileNotFoundError(f"Missing {file_name}")
         if os.path.exists(zip_path) and os.path.getsize(zip_path) > 0:
+            # Verify zip contents
+            with zipfile.ZipFile(zip_path, 'r') as zipf:
+                zip_contents = zipf.namelist()
+                print(f"Contents of {zip_path}: {zip_contents}")
+                if "eeg_hpc_benchmark/feature_extraction.py" not in zip_contents:
+                    raise RuntimeError("feature_extraction.py missing in zip")
             sc.addPyFile(zip_path)
             print(f"Added {zip_path} to SparkContext ({os.path.getsize(zip_path)} bytes)")
         else:
-            print(f"ERROR: Failed to create or add {zip_path}")
             raise RuntimeError(f"Failed to create {zip_path}")
     except Exception as e:
         print(f"ERROR creating or adding {zip_path}: {e}")
         raise
 
     # Import from the module
-    from eeg_hpc_benchmark.populate_schemas import load_subjects_df, process_subjects_parallel, extract_features_udtf
-    from eeg_hpc_benchmark.feature_extraction import processEpoch, processSub
-    from eeg_hpc_benchmark.schema_definition import get_feature_schema, get_subject_schema
-    from eeg_hpc_benchmark.preprocess_sets import load_subjects_spark, join_epochs_with_metadata
+    try:
+        from eeg_hpc_benchmark.populate_schemas import load_subjects_df, process_subjects_parallel, extract_features_udtf
+        from eeg_hpc_benchmark.feature_extraction import processEpoch, processSub
+        from eeg_hpc_benchmark.schema_definition import get_feature_schema, get_subject_schema
+        from eeg_hpc_benchmark.preprocess_sets import load_subjects_spark, join_epochs_with_metadata
+    except ImportError as e:
+        print(f"ERROR importing from eeg_hpc_benchmark: {e}")
+        raise
 
     subject_ids = ['sub-001']
     print("loading subjects")

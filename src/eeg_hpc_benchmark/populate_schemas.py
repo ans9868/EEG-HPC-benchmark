@@ -22,7 +22,6 @@ import numpy as np
 import pandas as pd
 from pyspark.sql import Row
 
-from eeg_hpc_benchmark.feature_extraction import processEpoch  # This function returns a list of Rows
 
 
 

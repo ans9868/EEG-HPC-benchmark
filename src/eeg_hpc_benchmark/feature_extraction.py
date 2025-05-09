@@ -262,4 +262,5 @@ def processSubjects(subjectList, n_jobs=-1):
         allResults[subject] = result
 
     return allResults
-processEpoch
+
+#processEpoch
