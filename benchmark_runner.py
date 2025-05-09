@@ -23,7 +23,7 @@ sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "./src/")))
 
 
 # how make this dynamic, this is needed for pyspark workers to find the src directory
-ROOT_DIR = "."
+ROOT_DIR = "/home/ans9868/EEG-HPC-benchmark"
 SRC_DIR = ROOT_DIR + "/src"
 
 sys.path.append("/home/ans9868/EEG-HPC-benchmark/src")
@@ -126,7 +126,7 @@ def main():
         .config("spark.broadcast.compress", "true")
         
         .getOrCreate()
-)
+    )
 
     # Optional: Set log level to reduce console output
     spark.sparkContext.setLogLevel("WARN")    
@@ -186,8 +186,8 @@ def main():
         sc.addPyFile(os.path.join(SRC_DIR, "preprocess_sets.py"))
         print("Added preprocess_sets.py to the pyspark context")
         
-        sc.addPyFile("src.zip")
-        print("Added src.zip to the pyspark context")
+        #sc.addPyFile("src.zip")
+        #print("Added src.zip to the pyspark context")
     
     except Exception as e:
         print(f"Error adding files to SparkContext: {e}")
