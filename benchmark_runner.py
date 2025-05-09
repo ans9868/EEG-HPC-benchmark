@@ -45,15 +45,7 @@ def main():
     external_ssd_path = "/scratch/ans9868/spark_temp"
     os.makedirs(external_ssd_path, exist_ok=True)
 
-        # load / create config file 
-    try:
-        config = load_config()
-    except RuntimeError:
-        config = initiate_config()
 
-    config = load_config_file_only("config.yaml")  # or use full path if needed
-    broadcast_config = spark.sparkContext.broadcast(config) #to make the config available to the pyspark workers and not make a copy
-    config = broadcast_config.value
     
     
     # Calculate cluster resources
@@ -146,7 +138,15 @@ def main():
     print(f"Driver memory configured: {spark.conf.get('spark.driver.memory')}")
     print(f"Storage directory: {spark.conf.get('spark.local.dir')}")
     
-        
+    # load / create config file to make it available 
+    try:
+        config = load_config()
+    except RuntimeError:
+        config = initiate_config()
+
+    config = load_config_file_only("config.yaml")  # or use full path if needed
+    broadcast_config = spark.sparkContext.broadcast(config) #to make the config available to the pyspark workers and not make a copy
+    config = broadcast_config.value
     
     # Enable Apache Arrow (huge for pandas UDFs)
     
@@ -202,7 +202,7 @@ def main():
     # subject_ids = ['sub-003'] #, 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
     print("loading subjects")
     abs_start = time.time()
-    df_epochs, df_metadata = load_subjects_spark(spark, subject_ids, output_base_dir=external_ssd_path, config=config)    
+    df_epochs, df_metadata = load_subjects_spark(spark, subject_ids, output_base_dir=external_ssd_path)    
     
     print("got epochs and metadata")
     
@@ -236,9 +236,18 @@ def main():
     start = time.time()
     # Apply the UDTF: One subject group at a time
     #
-    print("[SPARK] Applying extract_features_udtf...")
+    
+    print("[SPARK] Applying process_subjects_parallel (this calls the udtf) :)...")
+    
+    start = time.time()
 
- 
+    subs = process_subjects_parallel(
+       spark=spark, 
+       epochs_df=df_epochs, 
+       metadata_df=df_metadata,
+        config=config,
+       output_base_dir=external_ssd_path
+    ) 
 
     # subs = (
     #     df.groupBy("SubjectID").applyInPandas(
