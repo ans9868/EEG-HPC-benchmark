@@ -1,0 +1,16 @@
+[2025-05-08 22:59:36] Traceback (most recent call last):
+[2025-05-08 22:59:36]   File "/home/ans9868/EEG-HPC-benchmark/benchmark_runner.py", line 2, in <module>
+[2025-05-08 22:59:36]     from pyspark.sql import SparkSession
+[2025-05-08 22:59:36]   File "/home/ans9868/.local/lib/python3.11/site-packages/pyspark/__init__.py", line 46, in <module>
+[2025-05-08 22:59:36]     from pyspark.context import SparkContext
+[2025-05-08 22:59:36]   File "/home/ans9868/.local/lib/python3.11/site-packages/pyspark/context.py", line 31, in <module>
+[2025-05-08 22:59:36]     from pyspark import accumulators
+[2025-05-08 22:59:36]   File "/home/ans9868/.local/lib/python3.11/site-packages/pyspark/accumulators.py", line 97, in <module>
+[2025-05-08 22:59:36]     from pyspark.cloudpickle import CloudPickler
+[2025-05-08 22:59:36]   File "/home/ans9868/.local/lib/python3.11/site-packages/pyspark/cloudpickle.py", line 146, in <module>
+[2025-05-08 22:59:36]     _cell_set_template_code = _make_cell_set_template_code()
+[2025-05-08 22:59:36]                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[2025-05-08 22:59:36]   File "/home/ans9868/.local/lib/python3.11/site-packages/pyspark/cloudpickle.py", line 127, in _make_cell_set_template_code
+[2025-05-08 22:59:36]     return types.CodeType(
+[2025-05-08 22:59:36]            ^^^^^^^^^^^^^^^
+[2025-05-08 22:59:36] TypeError: code expected at least 16 arguments, got 15

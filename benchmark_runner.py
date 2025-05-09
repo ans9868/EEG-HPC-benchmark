@@ -21,9 +21,9 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "./src/")))
 
-ROOT_DIR = "."
-SRC_DIR = ROOT_DIR + "/src"
-sys.path.append("/Users/admin/projectst/EEG-Feature-Benchmark")
+# ROOT_DIR = "."
+# SRC_DIR = ROOT_DIR + "/src"
+# sys.path.append("/Users/admin/projectst/EEG-Feature-Benchmark")
 
 from config_handler import initiate_config, load_config
 
@@ -33,93 +33,103 @@ def main():
     start = time.time()
     # change the spar ksettings ! 
 
-    if SparkContext._active_spark_context:
-        print("Stopping existing Spark context...")
-        SparkContext._active_spark_context.stop()
-        print("Previous Spark context stopped successfully")
 
 
-    os.environ["_JAVA_OPTIONS"] = "-Xmx12g -Xms4g"
+    # Cluster configuration for PySpark - 2 nodes (16 cores, 64GB RAM total)
+    import psutil
+    import os
+    
+    # Define storage paths (modify as needed for your cluster)
+    external_ssd_path = "/scratch/ans9868/spark_temp"
+    os.makedirs(external_ssd_path, exist_ok=True)
+    
+    # Calculate cluster resources
+    total_cores = 16
+    total_memory_gb = 64
+    nodes = 2
+    
+    # Reserve memory for OS and system processes (15% per node)
+    reserve_memory_per_node = total_memory_gb / nodes * 0.15
+    available_memory_gb = total_memory_gb - (reserve_memory_per_node * nodes)
+    
+    # Allocate resources
+    cores_per_executor = 2  # Recommended size for good parallelism without excessive overhead
+    num_executors = nodes * (total_cores // cores_per_executor) // nodes - 1  # Reserve 1 core per node for overhead
+    
+    # Memory settings (account for overhead)
+    executor_memory_gb = int((available_memory_gb * 0.8) / num_executors)  # 80% for executors
+    driver_memory_gb = int(available_memory_gb * 0.2)  # 20% for driver
+    
+    # Calculate executor overhead (roughly 10% of executor memory)
+    executor_overhead_mb = int(executor_memory_gb * 1024 * 0.1)
+    
 
-# Build Spark session with memory, parallelism, and network settings
-    # spark = (
-    #     SparkSession.builder
-    #     .appName("EEG_Analysis")
-    # 
-    #     # Use 8 threads for better CPU balance on an M4 (assume 8–10 efficiency/performance cores)
-    #     .config("spark.master", "local[8]")
-    # 
-    #     # Optimize memory use (you can likely push this higher depending on RAM)
-    #     .config("spark.executor.memory", "18g")
-    #     .config("spark.driver.memory", "18g")
-    # 
-    #     # Reduce shuffle overhead in local mode
-    #     .config("spark.sql.shuffle.partitions", "100")
-    #     .config("spark.sql.adaptive.enabled", "true")
-    #     # Match parallelism to CPU threads
-    #     .config("spark.default.parallelism", "8")
-    #     .config("spark.sql.adaptive.shuffle.targetPostShuffleInputSize", "5120000")  # 5MB
-    #     # Larger RPC size helps with big EEG rows
-    #     .config("spark.rpc.message.maxSize", "256")
-    #     .config("spark.sql.execution.arrow.pyspark.enabled", "true")
-    #     .config("spark.sql.execution.arrow.maxRecordsPerBatch", "500")
-    #     # Ensure no duplicate/conflicting config keys (you had spark.master twice!)
-    #     .config("spark.driver.bindAddress", "127.0.0.1")
-    #     .config("spark.driver.host", "127.0.0.1")
-    #     
-    #     .getOrCreate()
-    # )
-   
-# Path to your external SSD
-    external_ssd_path = "/Volumes/CrucialX6/spark_temp"
     
-    # Calculate available system memory
-    system_memory_gb = psutil.virtual_memory().total / (1024 ** 3)
-    print(f"Total system memory: {system_memory_gb:.2f} GB")
+    print(f"Cluster configuration:")
+    print(f"  - Total nodes: {nodes}")
+    print(f"  - Total cores: {total_cores}")
+    print(f"  - Total memory: {total_memory_gb}GB")
+    print(f"  - Number of executors: {num_executors}")
+    print(f"  - Cores per executor: {cores_per_executor}")
+    print(f"  - Driver memory: {driver_memory_gb}GB")
+    print(f"  - Executor memory: {executor_memory_gb}GB")
+    print(f"  - Executor overhead: {executor_overhead_mb}MB")
     
-    # Reserve memory for OS and other processes (25% or at least 4GB)
-    reserve_memory_gb = max(4, system_memory_gb * 0.25)
-    available_memory_gb = system_memory_gb - reserve_memory_gb
-    
-    # Calculate reasonable memory settings (rounded down)
-    driver_memory_gb = int(available_memory_gb * 0.6)  # 60% for driver
-    executor_memory_gb = int(available_memory_gb * 0.3)  # 30% for executor
-    
-    print(f"Setting driver memory: {driver_memory_gb}g")
-    print(f"Setting executor memory: {executor_memory_gb}g")
-    
-    # Create SparkSession with optimized memory configuration
+    # Create SparkSession with distributed cluster configuration
+    master_url = os.getenv('SPARK_URL')
     spark = (SparkSession.builder
-        .appName("EEG-Analysis")
-        .config("spark.driver.memory", f"{driver_memory_gb}g")
-        .config("spark.executor.memory", f"{executor_memory_gb}g")
-        .config("spark.memory.fraction", "0.7")  # Fraction of heap used for execution and storage
-        .config("spark.memory.storageFraction", "0.5")  # Fraction used for storage (caching)
-        .config("spark.shuffle.spill.numElementsForceSpillThreshold", "5000")
-        # Add this to force more aggressive spillage
-        .config("spark.sql.shuffle.partitions", "200")  # Higher than default
-        .config("spark.driver.maxResultSize", f"{int(driver_memory_gb * 0.5)}g")  # Limit result collection size
+        .appName("EEG-Analysis-Cluster")
+        .master(master_url)  # Set to your cluster's master URL
         
-        # Storage locations on external SSD
+        # Resource allocation
+        .config("spark.executor.instances", str(num_executors))
+        .config("spark.executor.cores", str(cores_per_executor))
+        .config("spark.executor.memory", f"{executor_memory_gb}g")
+        .config("spark.driver.memory", f"{driver_memory_gb}g")
+        .config("spark.executor.memoryOverhead", f"{executor_overhead_mb}m")
+        
+        # Performance tuning
+        .config("spark.default.parallelism", str(total_cores * 2))  # 2x total cores
+        .config("spark.sql.shuffle.partitions", str(total_cores * 4))  # 4x total cores
+        .config("spark.memory.fraction", "0.75")  # Higher for data processing workloads
+        .config("spark.memory.storageFraction", "0.4")  # Balanced for compute/storage
+        .config("spark.driver.maxResultSize", f"{driver_memory_gb // 2}g")
+        
+        # Network and shuffle optimizations
+        .config("spark.reducer.maxSizeInFlight", "96m")  # Larger for faster network transfers
+        .config("spark.shuffle.file.buffer", "2m")  # Increased for better I/O
+        .config("spark.shuffle.io.maxRetries", "10")  # More resilient in distributed environment
+        .config("spark.shuffle.io.retryWait", "30s")  # Wait longer between retries
+        .config("spark.executor.heartbeatInterval", "10s")  # Set a much shorter heartbeat interval
+        .config("spark.network.timeout", "800s")  # Prevent timeouts on larger operations
+        
+        # Storage locations
         .config("spark.local.dir", external_ssd_path)
         .config("spark.worker.dir", external_ssd_path)
-        .config("spark.shuffle.service.index.cache.entries", "4096")
         .config("spark.sql.warehouse.dir", f"{external_ssd_path}/warehouse")
         
-        # Temporary file locations and GC settings
+        # Memory management and GC
         .config("spark.driver.extraJavaOptions", 
-                f"-Djava.io.tmpdir={external_ssd_path}/tmp -XX:+UseG1GC") # -XX:+PrintGCDetails") this is to print the memorry details 
+                f"-Djava.io.tmpdir={external_ssd_path}/tmp -XX:+UseG1GC -XX:G1HeapRegionSize=16m -XX:+PrintFlagsFinal -XX:+PrintReferenceGC -XX:+HeapDumpOnOutOfMemoryError")
         .config("spark.executor.extraJavaOptions", 
-                f"-Djava.io.tmpdir={external_ssd_path}/tmp -XX:+UseG1GC")
-                
-        # Optimize disk spill performance
-        .config("spark.shuffle.file.buffer", "1m")
-        .config("spark.shuffle.spill.compress", "true")
+                f"-Djava.io.tmpdir={external_ssd_path}/tmp -XX:+UseG1GC -XX:G1HeapRegionSize=16m -XX:+UnlockDiagnosticVMOptions -XX:+G1SummarizeConcMark")
+        
+        # Data compression - snappy is balanced for speed/compression ratio
+        .config("spark.io.compression.codec", "snappy")
         .config("spark.shuffle.compress", "true")
+        .config("spark.shuffle.spill.compress", "true")
+        .config("spark.broadcast.compress", "true")
+        
+        # Dynamic allocation (optional, remove if you want fixed allocation)
+        #.config("spark.dynamicAllocation.enabled", "true")
+        #.config("spark.dynamicAllocation.minExecutors", str(num_executors // 2))
+        #.config("spark.dynamicAllocation.maxExecutors", str(num_executors + 4))
         
         .getOrCreate()
-    )
-    
+)
+
+    # Optional: Set log level to reduce console output
+    spark.sparkContext.setLogLevel("WARN")    
     # Create necessary directories if they don't exist
     os.makedirs(f"{external_ssd_path}/tmp", exist_ok=True)
     os.makedirs(f"{external_ssd_path}/warehouse", exist_ok=True)
@@ -223,6 +233,8 @@ def main():
     print("[SPARK] Applying extract_features_udtf...")
     
     subs = process_subjects_parallel(spark, df, output_base_dir=external_ssd_path)
+ 
+
     # subs = (
     #     df.groupBy("SubjectID").applyInPandas(
     #         extract_features_udtf,
