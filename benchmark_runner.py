@@ -202,7 +202,7 @@ def main():
     # subject_ids = ['sub-003'] #, 'sub-002', 'sub-003', 'sub-004', 'sub-005', 'sub-006', 'sub-007', 'sub-008', 'sub-009', 'sub-010']
     print("loading subjects")
     abs_start = time.time()
-    df_epochs, df_metadata = load_subjects_spark(spark, subject_ids, output_base_dir=external_ssd_path)    
+    df_epochs, df_metadata = load_subjects_spark(spark, subject_ids, config=config, output_base_dir=external_ssd_path)    
     
     print("got epochs and metadata")
     

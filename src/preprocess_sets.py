@@ -141,10 +141,18 @@ def join_epochs_with_metadata(df_epochs: DataFrame, df_metadata: DataFrame) -> D
 
 
 
-def load_subjects_spark(spark: SparkSession, subject_ids: list, output_base_dir="/Volumes/CrucialX6/spark_data", force_recompute=False):
+def load_subjects_spark(spark: SparkSession, subject_ids: list, config=None, output_base_dir="/Volumes/CrucialX6/spark_data", force_recompute=False):
+    if not config:
+        print("NO CONFIG IN LOAD_SUBJECTS_SPARK@!")
+    print(f"[DEBUG] load_subjects_spark")
+    windowLength = config['windowLength']
+    stepSize = config['stepSize']
     def processSubSpark(sub_id):
         try:
-            raw = mne.io.read_raw_eeglab(subPath(sub_id), preload=True)
+            sub_path = subPath(sub_id, config)
+            print(f"[DEBUG] load_subjects_spark --> processSubSpark {sub_id}")
+            print(f"[DEBUG] processSubSpark {sub_id} path: {sub_path}")
+            raw = mne.io.read_raw_eeglab(sub_path, preload=True)
 
             # Mark boundary annotations
             for i, desc in enumerate(raw.annotations.description):
