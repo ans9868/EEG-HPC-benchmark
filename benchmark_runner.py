@@ -167,6 +167,12 @@ def main():
         print(f"ERROR importing from eeg_hpc_benchmark: {e}")
         raise
 
+    print("=== Spark Configuration & Runtime info ===")
+    print(f"App ID: {spark.sparkContext.applicationId}")
+    print(f"Master: {spark.sparkContext.master}")
+    print(f"Default Parallelism: {spark.sparkContext.defaultParallelism}")
+    print(f"Total Executors: {spark.sparkContext._jsc.sc().getExecutorMemoryStatus().size()}")
+
     # subject_ids = ['sub-001']
     subject_ids = [f'sub-{i:03d}' for i in range(1, 89)]
     print("loading subjects")
