@@ -240,14 +240,8 @@ def main():
     print("[SPARK] Applying process_subjects_parallel (this calls the udtf) :)...")
     
     start = time.time()
-
-    subs = process_subjects_parallel(
-       spark=spark, 
-       epochs_df=df_epochs, 
-       metadata_df=df_metadata,
-        config=config,
-       output_base_dir=external_ssd_path
-    ) 
+#def process_subjects_parallel(spark: SparkSession, epochs_df, metadata_df, output_base_dir="/Volumes/CrucialX6/spark_data", force_recompute=False):
+    subs = process_subjects_parallel(spark=spark, epochs_df=df_epochs, metadata_df=df_metadata, output_base_dir=external_ssd_path) 
 
     # subs = (
     #     df.groupBy("SubjectID").applyInPandas(
